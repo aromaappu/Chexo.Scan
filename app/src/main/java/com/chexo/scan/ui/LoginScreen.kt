@@ -443,7 +443,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             Spacer(Modifier.height(4.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     "Forgot Password?",
@@ -451,7 +452,6 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     fontSize = 11.sp,
                                     modifier = Modifier.clickable { switchPage(3) }
                                 )
-                                Spacer(Modifier.weight(1f))
                                 Box(
                                     modifier = Modifier
                                         .size(30.dp)
@@ -471,7 +471,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(8.dp))
                             Text(
                                 "Sign Up",
                                 color = Color.White,
