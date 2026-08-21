@@ -85,7 +85,6 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var rememberMe by remember { mutableStateOf(false) }
     var usernameError by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
@@ -421,32 +420,32 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Checkbox(
-                                    checked = rememberMe,
-                                    onCheckedChange = { rememberMe = it },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color.White,
-                                        uncheckedColor = Color.LightGray
-                                    )
-                                )
-                                Text("Remember Me", color = Color.White, fontSize = 11.sp)
-                            }
-                            Row {
-                                Text(
-                                    "Sign Up",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.clickable { switchPage(1) }
-                                )
-                                Spacer(Modifier.width(16.dp))
                                 Text(
                                     "Forgot Password?",
                                     color = Color(0xFF90CAF9),
-                                    fontSize = 13.sp,
+                                    fontSize = 11.sp,
                                     modifier = Modifier.clickable { switchPage(3) }
                                 )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    "G",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clickable {
+                                        clearErrors()
+                                        openGoogleSignIn()
+                                    }
+                                )
                             }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Sign Up",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { switchPage(1) }
+                            )
                         }
                     }
                     1 -> {
