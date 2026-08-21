@@ -1,6 +1,8 @@
 package com.chexo.scan.ui
 
 import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,12 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +37,7 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.rpc
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -55,14 +58,26 @@ data class UserProfile(
 
 @Composable
 fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
-    var isLogin by remember { mutableStateOf(true) }
-    var email by remember { mutableStateOf("") }
+    var page by remember { mutableIntStateOf(0) }
+    var pageTarget by remember { mutableIntStateOf(0) }
+    var rotationTarget by remember { mutableFloatStateOf(0f) }
+    var contentAlpha by remember { mutableFloatStateOf(1f) }
+    var isAnimating by remember { mutableStateOf(false) }
+
+    val rotation by animateFloatAsState(
+        targetValue = rotationTarget,
+        animationSpec = tween(durationMillis = 600),
+        label = "rot"
+    )
+
     var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var rememberMe by remember { mutableStateOf(false) }
-    var emailError by remember { mutableStateOf("") }
+
     var usernameError by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
     var confirmError by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -90,98 +105,68 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    fun validateLogin(): Boolean {
-        var valid = true
+    fun switchPage(newPage: Int) {
+        if (isAnimating || page == newPage) return
+        isAnimating = true
+        pageTarget = newPage
+        contentAlpha = 0f
+        rotationTarget = rotationTarget + 180f
+    }
+
+    LaunchedEffect(pageTarget) {
+        delay(300)
+        page = pageTarget
+        contentAlpha = 1f
+        isAnimating = false
+    }
+
+    fun doSignupStep1() {
         authError = ""
-        if (isLogin) {
-            if (username.isBlank()) {
-                usernameError = "Username is required"
-                valid = false
-            } else {
-                usernameError = ""
-            }
-        } else {
-            if (username.isBlank()) {
-                usernameError = "Username is required"
-                valid = false
-            } else if (username.length < 3) {
-                usernameError = "Min 3 characters"
-                valid = false
-            } else {
-                usernameError = ""
-            }
-            if (email.isBlank()) {
-                emailError = "Email is required"
-                valid = false
-            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                emailError = "Enter valid email"
-                valid = false
-            } else {
-                emailError = ""
-            }
-            if (confirmPassword != password) {
-                confirmError = "Passwords do not match"
-                valid = false
-            } else {
-                confirmError = ""
-            }
+        usernameError = ""
+        passwordError = ""
+        confirmError = ""
+
+        if (username.isBlank()) {
+            usernameError = "Username is required"
+            return
+        }
+        if (username.length < 3) {
+            usernameError = "Min 3 characters"
+            return
         }
         if (password.isBlank()) {
             passwordError = "Password is required"
-            valid = false
-        } else if (password.length < 6) {
+            return
+        }
+        if (password.length < 6) {
             passwordError = "Min 6 characters"
-            valid = false
-        } else {
-            passwordError = ""
+            return
         }
-        return valid
+        if (confirmPassword != password) {
+            confirmError = "Passwords do not match"
+            return
+        }
+        if (confirmPassword.isBlank()) {
+            confirmError = "Confirm your password"
+            return
+        }
+
+        switchPage(2)
     }
 
-    fun doLogin() {
-        if (!validateLogin()) return
-        isLoading = true
-        scope.launch {
-            try {
-                val profileResult = SupabaseClient.client.from("users")
-                    .select(columns = Columns.list("email")) {
-                        filter { eq("username", username.trim()) }
-                    }
-                    .decodeList<UserProfile>()
+    fun doSignupStep2() {
+        authError = ""
+        emailError = ""
 
-                val loginEmail = if (profileResult.isNotEmpty()) {
-                    profileResult[0].email
-                } else {
-                    username
-                }
-
-                if (loginEmail.isNullOrBlank()) {
-                    authError = "Username not found"
-                    isLoading = false
-                    return@launch
-                }
-
-                SupabaseClient.client.auth.signInWith(Email) {
-                    this.email = loginEmail
-                    this.password = password
-                }
-
-                Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                onLoginSuccess(username.trim())
-
-            } catch (e: Exception) {
-                authError = when {
-                    e.message?.contains("Invalid login", true) == true -> "Wrong password"
-                    else -> e.message?.take(80) ?: "Login failed"
-                }
-            } finally {
-                isLoading = false
-            }
+        if (email.isBlank()) {
+            emailError = "Email is required"
+            return
         }
-    }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            emailError = "Enter valid email"
+            return
+        }
 
-    fun doSignup() {
-        if (!validateLogin()) return
         isLoading = true
         scope.launch {
             try {
@@ -217,6 +202,52 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 authError = when {
                     e.message?.contains("already", true) == true -> "Username or email already exists"
                     else -> e.message?.take(80) ?: "Signup failed"
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    fun doLogin() {
+        if (username.isBlank() || password.isBlank()) {
+            authError = "Enter both username and password"
+            return
+        }
+        isLoading = true
+        authError = ""
+        scope.launch {
+            try {
+                val profileResult = SupabaseClient.client.from("users")
+                    .select(columns = Columns.list("email")) {
+                        filter { eq("username", username.trim()) }
+                    }
+                    .decodeList<UserProfile>()
+
+                val loginEmail = if (profileResult.isNotEmpty()) {
+                    profileResult[0].email
+                } else {
+                    username
+                }
+
+                if (loginEmail.isNullOrBlank()) {
+                    authError = "Username not found"
+                    isLoading = false
+                    return@launch
+                }
+
+                SupabaseClient.client.auth.signInWith(Email) {
+                    this.email = loginEmail
+                    this.password = password
+                }
+
+                Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                onLoginSuccess(username.trim())
+
+            } catch (e: Exception) {
+                authError = when {
+                    e.message?.contains("Invalid login", true) == true -> "Wrong password"
+                    else -> e.message?.take(80) ?: "Login failed"
                 }
             } finally {
                 isLoading = false
@@ -373,205 +404,220 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
             Box(
                 modifier = Modifier
                     .size(300.dp)
-                    .clip(RoundedCornerShape(150.dp))
-                    .background(DarkBlue),
+                    .graphicsLayer {
+                        rotationY = rotation
+                        cameraDistance = 12f * density
+                        alpha = contentAlpha
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
-                ) {
-                    Text(
-                        text = if (isLogin) "Login" else "Sign Up",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    TextField(
-                        value = username,
-                        onValueChange = { username = it; usernameError = ""; authError = "" },
-                        placeholder = { Text("Username", color = Color.Gray, fontSize = 13.sp) },
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF0F0F0),
-                            unfocusedContainerColor = Color(0xFFF0F0F0),
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            errorContainerColor = Color(0xFFF0F0F0),
-                            errorIndicatorColor = Color.Transparent
-                        ),
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
-                        isError = usernameError.isNotEmpty()
-                    )
-                    if (usernameError.isNotEmpty()) {
-                        Text(usernameError, color = ErrorRed, fontSize = 10.sp)
-                    }
-
-                    if (!isLogin) {
-                        Spacer(Modifier.height(8.dp))
-                        TextField(
-                            value = email,
-                            onValueChange = { email = it; emailError = ""; authError = "" },
-                            placeholder = { Text("Email", color = Color.Gray, fontSize = 13.sp) },
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFF0F0F0),
-                                unfocusedContainerColor = Color(0xFFF0F0F0),
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                errorContainerColor = Color(0xFFF0F0F0),
-                                errorIndicatorColor = Color.Transparent
-                            ),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            singleLine = true,
-                            textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
-                            isError = emailError.isNotEmpty()
-                        )
-                        if (emailError.isNotEmpty()) {
-                            Text(emailError, color = ErrorRed, fontSize = 10.sp)
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-                    TextField(
-                        value = password,
-                        onValueChange = { password = it; passwordError = ""; authError = "" },
-                        placeholder = { Text("Password", color = Color.Gray, fontSize = 13.sp) },
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF0F0F0),
-                            unfocusedContainerColor = Color(0xFFF0F0F0),
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            errorContainerColor = Color(0xFFF0F0F0),
-                            errorIndicatorColor = Color.Transparent
-                        ),
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
-                        isError = passwordError.isNotEmpty()
-                    )
-                    if (passwordError.isNotEmpty()) {
-                        Text(passwordError, color = ErrorRed, fontSize = 10.sp)
-                    }
-
-                    if (!isLogin) {
-                        Spacer(Modifier.height(8.dp))
-                        TextField(
-                            value = confirmPassword,
-                            onValueChange = { confirmPassword = it; confirmError = "" },
-                            placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFF0F0F0),
-                                unfocusedContainerColor = Color(0xFFF0F0F0),
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                errorContainerColor = Color(0xFFF0F0F0),
-                                errorIndicatorColor = Color.Transparent
-                            ),
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
-                            isError = confirmError.isNotEmpty()
-                        )
-                        if (confirmError.isNotEmpty()) {
-                            Text(confirmError, color = ErrorRed, fontSize = 10.sp)
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = rememberMe,
-                            onCheckedChange = { rememberMe = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = Color.White,
-                                uncheckedColor = Color.LightGray
-                            )
-                        )
-                        Text("Remember Me", color = Color.White, fontSize = 11.sp)
-                    }
-
-                    Row {
-                        Text(
-                            text = if (isLogin) "Sign Up" else "Login",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.clickable {
-                                isLogin = !isLogin
-                                emailError = ""
-                                passwordError = ""
-                                confirmError = ""
-                                usernameError = ""
-                                authError = ""
-                                email = ""
-                                password = ""
-                                confirmPassword = ""
-                            }
-                        )
-
-                        if (isLogin) {
-                            Spacer(Modifier.width(16.dp))
-                            Text(
-                                text = "Forgot Password?",
-                                color = Color(0xFF90CAF9),
-                                fontSize = 13.sp,
-                                modifier = Modifier.clickable {
-                                    showForgotDialog = true
-                                    forgotStep = 0
-                                    forgotInput = ""
-                                    forgotInputError = ""
-                                    forgotError = ""
-                                    forgotNewPass = ""
-                                    forgotConfirmPass = ""
-                                    forgotTotpCode = ""
+                when (page) {
+                    0 -> {
+                        Box(
+                            modifier = Modifier
+                                .size(300.dp)
+                                .clip(RoundedCornerShape(150.dp))
+                                .background(DarkBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text("Login", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(Modifier.height(12.dp))
+                                TextField(
+                                    value = username,
+                                    onValueChange = { username = it; usernameError = ""; authError = "" },
+                                    placeholder = { Text("Username", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = usernameError.isNotEmpty()
+                                )
+                                if (usernameError.isNotEmpty()) Text(usernameError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(8.dp))
+                                TextField(
+                                    value = password,
+                                    onValueChange = { password = it; passwordError = ""; authError = "" },
+                                    placeholder = { Text("Password", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = passwordError.isNotEmpty()
+                                )
+                                if (passwordError.isNotEmpty()) Text(passwordError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Checkbox(checked = rememberMe, onCheckedChange = { rememberMe = it },
+                                        colors = CheckboxDefaults.colors(checkedColor = Color.White, uncheckedColor = Color.LightGray))
+                                    Text("Remember Me", color = Color.White, fontSize = 11.sp)
                                 }
-                            )
+                                Row {
+                                    Text("Sign Up", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.clickable {
+                                            authError = ""; usernameError = ""; passwordError = ""; confirmError = ""
+                                            switchPage(1)
+                                        })
+                                    Spacer(Modifier.width(16.dp))
+                                    Text("Forgot Password?", color = Color(0xFF90CAF9), fontSize = 13.sp,
+                                        modifier = Modifier.clickable {
+                                            showForgotDialog = true; forgotStep = 0; forgotInput = ""; forgotInputError = ""; forgotError = ""
+                                            forgotNewPass = ""; forgotConfirmPass = ""; forgotTotpCode = ""
+                                        })
+                                }
+                            }
+                        }
+                    }
+
+                    1 -> {
+                        Box(
+                            modifier = Modifier
+                                .size(300.dp)
+                                .clip(RoundedCornerShape(150.dp))
+                                .background(DarkBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text("Sign Up", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(Modifier.height(12.dp))
+                                TextField(
+                                    value = username,
+                                    onValueChange = { username = it; usernameError = ""; authError = "" },
+                                    placeholder = { Text("Username", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = usernameError.isNotEmpty()
+                                )
+                                if (usernameError.isNotEmpty()) Text(usernameError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(8.dp))
+                                TextField(
+                                    value = password,
+                                    onValueChange = { password = it; passwordError = ""; authError = "" },
+                                    placeholder = { Text("Password", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = passwordError.isNotEmpty()
+                                )
+                                if (passwordError.isNotEmpty()) Text(passwordError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(8.dp))
+                                TextField(
+                                    value = confirmPassword,
+                                    onValueChange = { confirmPassword = it; confirmError = ""; authError = "" },
+                                    placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = confirmError.isNotEmpty()
+                                )
+                                if (confirmError.isNotEmpty()) Text(confirmError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Login", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable {
+                                        authError = ""; usernameError = ""; passwordError = ""; confirmError = ""
+                                        switchPage(0)
+                                    })
+                            }
+                        }
+                    }
+
+                    2 -> {
+                        Box(
+                            modifier = Modifier
+                                .size(300.dp)
+                                .clip(RoundedCornerShape(150.dp))
+                                .background(DarkBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text("Sign Up", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(Modifier.height(12.dp))
+                                TextField(
+                                    value = email,
+                                    onValueChange = { email = it; emailError = ""; authError = "" },
+                                    placeholder = { Text("Email", color = Color.Gray, fontSize = 13.sp) },
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                                        errorContainerColor = Color(0xFFF0F0F0), errorIndicatorColor = Color.Transparent
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                    isError = emailError.isNotEmpty()
+                                )
+                                if (emailError.isNotEmpty()) Text(emailError, color = ErrorRed, fontSize = 10.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Back", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable {
+                                        authError = ""; emailError = ""
+                                        switchPage(1)
+                                    })
+                            }
                         }
                     }
                 }
             }
 
-            if (authError.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(authError, color = ErrorRed, fontSize = 12.sp)
-            }
-
             Spacer(modifier = Modifier.height(20.dp))
+
+            if (authError.isNotEmpty()) {
+                Text(authError, color = ErrorRed, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Button(
                 onClick = {
-                    if (isLogin) doLogin() else doSignup()
+                    authError = ""
+                    when (page) {
+                        0 -> doLogin()
+                        1 -> doSignupStep1()
+                        2 -> doSignupStep2()
+                    }
                 },
-                modifier = Modifier
-                    .width(200.dp)
-                    .height(50.dp),
+                modifier = Modifier.width(200.dp).height(50.dp),
                 shape = RoundedCornerShape(25.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
                 enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                 } else {
                     Text(
-                        text = if (isLogin) "Login" else "Sign Up",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        text = when (page) { 0 -> "Login"; else -> "Sign Up" },
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White
                     )
                 }
             }
@@ -583,59 +629,32 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
             ) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = DarkBlue)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .verticalScroll(rememberScrollState()),
+                        modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            "Scan QR Code",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = Color.White
-                        )
-
+                        Text("Scan QR Code", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            "Open Google Authenticator and scan this QR code, then enter the 6-digit code below.",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center
-                        )
-
+                        Text("Open Google Authenticator and scan this QR code, then enter the 6-digit code below.",
+                            color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(16.dp))
 
                         val qrBitmap = remember(totpUri) {
-                            try {
-                                TotpHelper.generateQrBitmap(totpUri)
-                            } catch (_: Exception) {
-                                null
-                            }
+                            try { TotpHelper.generateQrBitmap(totpUri) } catch (_: Exception) { null }
                         }
-
                         if (qrBitmap != null) {
-                            Image(
-                                bitmap = qrBitmap.asImageBitmap(),
-                                contentDescription = "TOTP QR Code",
-                                modifier = Modifier.size(200.dp)
-                            )
+                            Image(bitmap = qrBitmap.asImageBitmap(), contentDescription = "TOTP QR Code", modifier = Modifier.size(200.dp))
                         } else {
                             Text("QR generation failed", color = ErrorRed, fontSize = 12.sp)
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
-
                         Text("Or enter manually:", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                         Text(totpSecret, color = Color(0xFF90CAF9), fontSize = 11.sp, textAlign = TextAlign.Center)
-
                         Spacer(modifier = Modifier.height(16.dp))
 
                         TextField(
@@ -644,35 +663,26 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             placeholder = { Text("6-digit code", color = Color.Gray, fontSize = 13.sp) },
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFF0F0F0),
-                                unfocusedContainerColor = Color(0xFFF0F0F0),
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
+                                focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                            singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
                         )
-
                         if (totpError.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(totpError, color = ErrorRed, fontSize = 12.sp)
                         }
-
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
                             onClick = { doEnrollVerify() },
                             modifier = Modifier.fillMaxWidth().height(45.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                            shape = RoundedCornerShape(25.dp),
-                            enabled = !isLoading
+                            shape = RoundedCornerShape(25.dp), enabled = !isLoading
                         ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                            } else {
-                                Text("Verify", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
+                            if (isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Text("Verify", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
@@ -685,16 +695,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
             ) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = DarkBlue)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .verticalScroll(rememberScrollState()),
+                        modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         when (forgotStep) {
@@ -702,23 +708,16 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 Text("Forgot Password", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 TextField(
-                                    value = forgotInput,
-                                    onValueChange = { forgotInput = it; forgotInputError = "" },
+                                    value = forgotInput, onValueChange = { forgotInput = it; forgotInputError = "" },
                                     placeholder = { Text("Username or Email", color = Color.Gray, fontSize = 13.sp) },
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF0F0F0),
-                                        unfocusedContainerColor = Color(0xFFF0F0F0),
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                                     ),
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
                                 )
-                                if (forgotInputError.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(forgotInputError, color = ErrorRed, fontSize = 12.sp)
-                                }
+                                if (forgotInputError.isNotEmpty()) { Spacer(modifier = Modifier.height(4.dp)); Text(forgotInputError, color = ErrorRed, fontSize = 12.sp) }
                             }
                             1 -> {
                                 Text("Enter TOTP Code", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
@@ -731,48 +730,37 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     placeholder = { Text("6-digit code", color = Color.Gray, fontSize = 13.sp) },
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF0F0F0),
-                                        unfocusedContainerColor = Color(0xFFF0F0F0),
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                                     ),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                                    singleLine = true, textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
                                 )
                             }
                             2 -> {
                                 Text("New Password", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 TextField(
-                                    value = forgotNewPass,
-                                    onValueChange = { forgotNewPass = it; forgotError = "" },
+                                    value = forgotNewPass, onValueChange = { forgotNewPass = it; forgotError = "" },
                                     placeholder = { Text("New Password", color = Color.Gray, fontSize = 13.sp) },
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF0F0F0),
-                                        unfocusedContainerColor = Color(0xFFF0F0F0),
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                                     ),
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(), singleLine = true,
                                     textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 TextField(
-                                    value = forgotConfirmPass,
-                                    onValueChange = { forgotConfirmPass = it; forgotError = "" },
+                                    value = forgotConfirmPass, onValueChange = { forgotConfirmPass = it; forgotError = "" },
                                     placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF0F0F0),
-                                        unfocusedContainerColor = Color(0xFFF0F0F0),
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
+                                        focusedContainerColor = Color(0xFFF0F0F0), unfocusedContainerColor = Color(0xFFF0F0F0),
+                                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                                     ),
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(), singleLine = true,
                                     textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
                                 )
                             }
@@ -782,14 +770,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 Text("Password changed successfully.\nPlease login with your new password.", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, textAlign = TextAlign.Center)
                             }
                         }
-
-                        if (forgotError.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(forgotError, color = ErrorRed, fontSize = 12.sp, textAlign = TextAlign.Center)
-                        }
-
+                        if (forgotError.isNotEmpty()) { Spacer(modifier = Modifier.height(8.dp)); Text(forgotError, color = ErrorRed, fontSize = 12.sp, textAlign = TextAlign.Center) }
                         Spacer(modifier = Modifier.height(16.dp))
-
                         Button(
                             onClick = {
                                 forgotError = ""
@@ -797,33 +779,18 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     0 -> doForgotLookup()
                                     1 -> doForgotVerifyTotp()
                                     2 -> doForgotReset()
-                                    3 -> {
-                                        showForgotDialog = false
-                                        forgotStep = 0
-                                    }
+                                    3 -> { showForgotDialog = false; forgotStep = 0 }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(45.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                            shape = RoundedCornerShape(25.dp),
-                            enabled = !forgotLoading
+                            shape = RoundedCornerShape(25.dp), enabled = !forgotLoading
                         ) {
-                            if (forgotLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                            } else {
-                                Text(
-                                    text = when (forgotStep) {
-                                        0 -> "Verify"
-                                        1 -> "Verify Code"
-                                        2 -> "Reset Password"
-                                        3 -> "Back to Login"
-                                        else -> ""
-                                    },
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
+                            if (forgotLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            else Text(
+                                text = when (forgotStep) { 0 -> "Verify"; 1 -> "Verify Code"; 2 -> "Reset Password"; 3 -> "Back to Login"; else -> "" },
+                                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White
+                            )
                         }
                     }
                 }
