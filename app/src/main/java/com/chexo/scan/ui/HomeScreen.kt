@@ -127,8 +127,6 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
 private fun SellPage(username: String, modifier: Modifier = Modifier) {
     var products by remember { mutableStateOf<List<LocalProduct>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var scannedBarcode by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
 
@@ -145,13 +143,7 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        BarcodeScannerView(
-            onBarcodeScanned = { barcode ->
-                scannedBarcode = barcode
-            }
-        )
-
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
         Text("Scanned Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
         Spacer(Modifier.height(8.dp))
 
@@ -161,7 +153,7 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                     CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
                 }
             }
-            products.isEmpty() -> Text("No products yet. Scan a barcode to add.", color = IconGray, fontSize = 13.sp)
+            products.isEmpty() -> Text("No products yet. Scan a barcode in Add tab.", color = IconGray, fontSize = 13.sp)
             else -> {
                 LazyColumn {
                     items(products, key = { it.id }) { product ->
@@ -188,34 +180,6 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
             }
         }
     }
-
-    if (scannedBarcode != null) {
-        ScanResultDialog(
-            barcode = scannedBarcode!!,
-            onDismiss = { scannedBarcode = null },
-            onConfirm = { name, quantity, customerPrice, ourPrice ->
-                scope.launch {
-                    try {
-                        db.localProductDao().insert(
-                            LocalProduct(
-                                username = username,
-                                barcode = scannedBarcode ?: "",
-                                name = name,
-                                quantity = quantity,
-                                customerPrice = customerPrice,
-                                ourPrice = ourPrice
-                            )
-                        )
-                        products = db.localProductDao().getAllForUser(username)
-                        Toast.makeText(context, "Product saved!", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
-                    scannedBarcode = null
-                }
-            }
-        )
-    }
 }
 
 @Composable
@@ -225,6 +189,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     var price by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var scannedBarcode by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -250,7 +215,14 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
             fontSize = 13.sp,
             color = IconGray
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        BarcodeScannerView(
+            onBarcodeScanned = { scannedBarcode = it }
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("— Or enter manually —", fontSize = 13.sp, color = IconGray)
+        Spacer(Modifier.height(8.dp))
 
         TextField(
             value = barcode,
@@ -336,6 +308,33 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                 Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
+    }
+
+    if (scannedBarcode != null) {
+        ScanResultDialog(
+            barcode = scannedBarcode!!,
+            onDismiss = { scannedBarcode = null },
+            onConfirm = { productName, quantity, customerPrice, ourPrice ->
+                scope.launch {
+                    try {
+                        db.localProductDao().insert(
+                            LocalProduct(
+                                username = username,
+                                barcode = scannedBarcode ?: "",
+                                name = productName,
+                                quantity = quantity,
+                                customerPrice = customerPrice,
+                                ourPrice = ourPrice
+                            )
+                        )
+                        Toast.makeText(context, "Product saved!", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    scannedBarcode = null
+                }
+            }
+        )
     }
 }
 
