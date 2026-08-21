@@ -29,17 +29,24 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
 private val DarkBlue = Color(0xFF1976D2)
+private val ErrorRed = Color(0xFFFF5252)
 
 @Composable
 fun ScanResultDialog(
     barcode: String,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, quantity: Int, customerPrice: Double, ourPrice: Double) -> Unit
+    onConfirm: (name: String, quantity: Int, customerPrice: Double, ourPrice: Double) -> Unit,
+    editName: String = "",
+    editQuantity: Int = 1,
+    editCustomerPrice: Double = 0.0,
+    editOurPrice: Double = 0.0,
+    isEdit: Boolean = false,
+    onDelete: (() -> Unit)? = null
 ) {
-    var name by remember { mutableStateOf("") }
-    var quantity by remember { mutableStateOf("1") }
-    var customerPrice by remember { mutableStateOf("") }
-    var ourPrice by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(editName) }
+    var quantity by remember { mutableStateOf(editQuantity.toString()) }
+    var customerPrice by remember { mutableStateOf(if (editCustomerPrice > 0) editCustomerPrice.toString() else "") }
+    var ourPrice by remember { mutableStateOf(if (editOurPrice > 0) editOurPrice.toString() else "") }
     var error by remember { mutableStateOf("") }
 
     val fieldColors = TextFieldDefaults.colors(
@@ -59,7 +66,12 @@ fun ScanResultDialog(
                 modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Scan Result", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = DarkBlue)
+                Text(
+                    if (isEdit) "Edit Product" else "Scan Result",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = DarkBlue
+                )
                 Spacer(Modifier.height(4.dp))
                 Text("Barcode: $barcode", fontSize = 13.sp, color = Color.Gray)
                 Spacer(Modifier.height(16.dp))
@@ -88,7 +100,7 @@ fun ScanResultDialog(
                 TextField(
                     value = customerPrice,
                     onValueChange = { customerPrice = it.filter { c -> c.isDigit() || c == '.' }; error = "" },
-                    placeholder = { Text("Customer Price", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text("Customer Price (Rate)", color = Color.Gray, fontSize = 13.sp) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     colors = fieldColors,
                     singleLine = true,
@@ -99,7 +111,7 @@ fun ScanResultDialog(
                 TextField(
                     value = ourPrice,
                     onValueChange = { ourPrice = it.filter { c -> c.isDigit() || c == '.' }; error = "" },
-                    placeholder = { Text("Our Price", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text("Our Price (Rate)", color = Color.Gray, fontSize = 13.sp) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     colors = fieldColors,
                     singleLine = true,
@@ -109,7 +121,7 @@ fun ScanResultDialog(
 
                 if (error.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
-                    Text(error, color = Color.Red, fontSize = 12.sp)
+                    Text(error, color = ErrorRed, fontSize = 12.sp)
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -121,7 +133,18 @@ fun ScanResultDialog(
                     val op = ourPrice.toDoubleOrNull() ?: 0.0
                     onConfirm(name.trim(), qty, cp, op)
                 }) {
-                    Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+                    Text(
+                        if (isEdit) "Update Product" else "Save Product",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkBlue
+                    )
+                }
+
+                if (isEdit && onDelete != null) {
+                    TextButton(onClick = { onDelete() }) {
+                        Text("Delete Product", fontSize = 14.sp, color = ErrorRed)
+                    }
                 }
 
                 TextButton(onClick = onDismiss) {

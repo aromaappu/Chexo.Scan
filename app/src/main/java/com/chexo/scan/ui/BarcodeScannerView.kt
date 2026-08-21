@@ -75,7 +75,7 @@ fun BarcodeScannerView(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(120.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .border(2.dp, DarkBlue, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
@@ -179,7 +179,7 @@ fun BarcodeScannerView(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(120.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .border(2.dp, DarkBlue, RoundedCornerShape(12.dp))
                 .background(Color.White),
