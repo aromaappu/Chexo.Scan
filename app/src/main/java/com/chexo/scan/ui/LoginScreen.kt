@@ -7,9 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +22,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.chexo.scan.AuthPrefs
 import com.chexo.scan.PasswordHasher
 import com.chexo.scan.SupabaseClient
@@ -53,8 +49,37 @@ data class UserProfile(
     val totp_secret: String? = null
 )
 
+@Serializable
+data class PasswordUpdate(
+    val password: String
+)
+
+private fun formatDbError(e: Exception): String {
+    val raw = listOfNotNull(e.message, e.cause?.message)
+        .joinToString(" | ")
+        .ifBlank { e.toString() }
+    return when {
+        raw.contains("users_username", true) ||
+            (raw.contains("duplicate", true) && raw.contains("username", true)) ->
+            "This username is already registered. Please choose another or log in."
+        raw.contains("users_email", true) ||
+            (raw.contains("duplicate", true) && raw.contains("email", true)) ->
+            "This Gmail is already registered. Please use a different account or log in."
+        raw.contains("duplicate", true) || raw.contains("unique", true) ->
+            "An account with these details already exists. Please log in instead."
+        raw.contains("row-level security", true) || raw.contains("RLS", true) ->
+            "Blocked by RLS. Allow INSERT/SELECT/UPDATE on public.users for anon"
+        raw.contains("null value", true) && raw.contains("user_id", true) ->
+            "user_id is required. Run: ALTER TABLE users ALTER COLUMN user_id DROP NOT NULL;"
+        raw.contains("Could not find the", true) && raw.contains("column", true) ->
+            "Column missing or schema cache. In Supabase: Settings → API → Reload schema"
+        else -> raw.take(160)
+    }
+}
+
 @Composable
 fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
+    // 0 login | 1 signup | 2 signup google | 3 forgot google | 4 forgot new password
     var page by remember { mutableIntStateOf(0) }
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -68,17 +93,10 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     var isLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf("") }
 
-    var showForgotDialog by remember { mutableStateOf(false) }
-    var forgotStep by remember { mutableIntStateOf(0) }
-    var forgotInput by remember { mutableStateOf("") }
-    var forgotInputError by remember { mutableStateOf("") }
     var forgotEmail by remember { mutableStateOf("") }
-    var forgotConfirmEmail by remember { mutableStateOf("") }
     var forgotUsername by remember { mutableStateOf("") }
     var forgotNewPass by remember { mutableStateOf("") }
     var forgotConfirmPass by remember { mutableStateOf("") }
-    var forgotError by remember { mutableStateOf("") }
-    var forgotLoading by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -96,86 +114,84 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) {
-            if (showForgotDialog && forgotStep == 1) {
-                forgotError = "Google sign-in cancelled"
-            } else {
-                emailError = "Google sign-in cancelled"
-            }
+            authError = "Google sign-in cancelled. Please try again."
             return@rememberLauncherForActivityResult
         }
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             val account = task.getResult(ApiException::class.java)
-            val picked = account?.email
+            val picked = account?.email?.trim()?.lowercase()
             if (picked.isNullOrBlank()) {
-                if (showForgotDialog && forgotStep == 1) {
-                    forgotError = "No email returned from Google"
-                } else {
-                    emailError = "No email returned from Google"
-                }
+                authError = "No email returned from Google"
                 return@rememberLauncherForActivityResult
             }
-            if (showForgotDialog && forgotStep == 1) {
-                forgotConfirmEmail = picked
-                forgotError = ""
+
+            if (page == 3) {
+                isLoading = true
+                authError = ""
+                scope.launch {
+                    try {
+                        val all = SupabaseClient.client.from("users")
+                            .select(columns = Columns.list("username", "email"))
+                            .decodeList<UserProfile>()
+                        val profiles = all.filter {
+                            it.email?.trim()?.equals(picked, ignoreCase = true) == true
+                        }
+                        if (profiles.isEmpty()) {
+                            authError = "No account is linked to this Gmail. Please sign up first."
+                        } else {
+                            forgotEmail = profiles[0].email?.trim()?.lowercase() ?: picked
+                            forgotUsername = profiles[0].username?.trim().orEmpty()
+                            forgotNewPass = ""
+                            forgotConfirmPass = ""
+                            page = 4
+                            authError = ""
+                        }
+                    } catch (e: Exception) {
+                        authError = formatDbError(e)
+                    } finally {
+                        isLoading = false
+                    }
+                }
             } else {
                 email = picked
                 emailError = ""
                 authError = ""
             }
         } catch (e: ApiException) {
-            val msg = "Google sign-in failed (${e.statusCode})"
-            if (showForgotDialog && forgotStep == 1) forgotError = msg
-            else emailError = msg
+            authError = "Google sign-in failed (${e.statusCode})"
         }
     }
 
     fun openGoogleSignIn() {
-        // Sign out first so Google always shows the account chooser
         googleSignInClient.signOut().addOnCompleteListener {
             googleSignInLauncher.launch(googleSignInClient.signInIntent)
         }
     }
 
     fun clearErrors() {
-        authError = ""; usernameError = ""; emailError = ""; passwordError = ""; confirmError = ""
-    }
-
-    fun formatDbError(e: Exception): String {
-        val raw = listOfNotNull(e.message, e.cause?.message)
-            .joinToString(" | ")
-            .ifBlank { e.toString() }
-        return when {
-            raw.contains("users_username", true) ||
-                (raw.contains("duplicate", true) && raw.contains("username", true)) ->
-                "This username is already registered. Please choose another or log in."
-            raw.contains("users_email", true) ||
-                (raw.contains("duplicate", true) && raw.contains("email", true)) ->
-                "This Gmail is already registered. Please use a different account or log in."
-            raw.contains("duplicate", true) || raw.contains("unique", true) ->
-                "An account with these details already exists. Please log in instead."
-            raw.contains("row-level security", true) || raw.contains("RLS", true) ->
-                "Blocked by RLS. Allow INSERT/SELECT on public.users for anon"
-            raw.contains("null value", true) && raw.contains("user_id", true) ->
-                "user_id is required. Run: ALTER TABLE users ALTER COLUMN user_id DROP NOT NULL;"
-            raw.contains("Could not find the", true) && raw.contains("column", true) ->
-                "Column missing or schema cache. In Supabase: Settings → API → Reload schema"
-            else -> raw.take(160)
-        }
+        authError = ""
+        usernameError = ""
+        emailError = ""
+        passwordError = ""
+        confirmError = ""
     }
 
     fun switchPage(newPage: Int) {
         keyboardController?.hide()
         clearErrors()
-        if (newPage == 2) {
-            email = ""
+        if (newPage == 2) email = ""
+        if (newPage == 3) {
+            forgotEmail = ""
+            forgotUsername = ""
+            forgotNewPass = ""
+            forgotConfirmPass = ""
         }
         page = newPage
     }
 
     fun finishLogin(name: String) {
-        if (rememberMe) AuthPrefs.saveSession(context, name)
-        else AuthPrefs.clearSession(context)
+        AuthPrefs.saveSession(context, name)
         Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
         onLoginSuccess(name)
     }
@@ -194,11 +210,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
 
     fun doSignupStep2() {
         clearErrors()
-        if (email.isBlank()) { emailError = "Continue with Google first"; return }
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            emailError = "Continue with Google first"
-            return
-        }
+        val mail = email.trim().lowercase()
+        if (mail.isBlank()) { emailError = "Continue with Google first"; return }
         isLoading = true
         keyboardController?.hide()
         scope.launch {
@@ -212,12 +225,10 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                     authError = "This username is already registered. Please choose another or log in."
                     return@launch
                 }
-                val existingEmail = SupabaseClient.client.from("users")
-                    .select(columns = Columns.list("username", "email")) {
-                        filter { eq("email", email.trim()) }
-                    }
+                val all = SupabaseClient.client.from("users")
+                    .select(columns = Columns.list("username", "email"))
                     .decodeList<UserProfile>()
-                if (existingEmail.isNotEmpty()) {
+                if (all.any { it.email?.equals(mail, ignoreCase = true) == true }) {
                     authError = "This Gmail is already registered. Please use a different account or log in."
                     return@launch
                 }
@@ -225,7 +236,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 SupabaseClient.client.from("users").insert(
                     buildJsonObject {
                         put("username", username.trim())
-                        put("email", email.trim())
+                        put("email", mail)
                         put("password", PasswordHasher.hash(password))
                     }
                 )
@@ -240,7 +251,9 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
 
     fun doLogin() {
         clearErrors()
-        if (username.isBlank() || password.isBlank()) {
+        val loginId = username.trim()
+        val loginPass = password
+        if (loginId.isBlank() || loginPass.isBlank()) {
             authError = "Please enter your username and password to continue."
             return
         }
@@ -248,25 +261,28 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
         keyboardController?.hide()
         scope.launch {
             try {
-                val profiles = SupabaseClient.client.from("users")
-                    .select(columns = Columns.list("username", "email", "password")) {
-                        filter { eq("username", username.trim()) }
-                    }
+                val all = SupabaseClient.client.from("users")
+                    .select(columns = Columns.list("username", "email", "password"))
                     .decodeList<UserProfile>()
+                val profiles = all.filter {
+                    it.username?.equals(loginId, ignoreCase = true) == true ||
+                        it.email?.equals(loginId, ignoreCase = true) == true
+                }
                 if (profiles.isEmpty()) {
                     authError = "No account found with this username. Please sign up to create one."
                     return@launch
                 }
-                val hash = profiles[0].password
+                val profile = profiles[0]
+                val hash = profile.password
                 if (hash.isNullOrBlank()) {
                     authError = "This account is incomplete. Please sign up again to finish setup."
                     return@launch
                 }
-                if (!PasswordHasher.matches(password, hash)) {
+                if (!PasswordHasher.matches(loginPass, hash)) {
                     authError = "Incorrect password. Please try again, or use Forgot Password."
                     return@launch
                 }
-                finishLogin(username.trim())
+                finishLogin(profile.username?.trim() ?: loginId)
             } catch (e: Exception) {
                 authError = formatDbError(e)
             } finally {
@@ -275,65 +291,73 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
         }
     }
 
-    fun doForgotLookup() {
-        if (forgotInput.isBlank()) { forgotInputError = "Enter username or email"; return }
-        forgotInputError = ""; forgotLoading = true; forgotError = ""
-        scope.launch {
-            try {
-                val input = forgotInput.trim()
-                val isEmail = android.util.Patterns.EMAIL_ADDRESS.matcher(input).matches()
-                val profileResult = if (isEmail) {
-                    SupabaseClient.client.from("users").select { filter { eq("email", input) } }.decodeList<UserProfile>()
-                } else {
-                    SupabaseClient.client.from("users").select { filter { eq("username", input) } }.decodeList<UserProfile>()
-                }
-                if (profileResult.isEmpty()) {
-                    forgotInputError = "User not found"
-                    forgotLoading = false
-                    return@launch
-                }
-                val profile = profileResult[0]
-                forgotEmail = profile.email ?: ""
-                forgotUsername = profile.username ?: ""
-                forgotConfirmEmail = ""
-                forgotStep = 1
-            } catch (e: Exception) {
-                forgotError = e.message?.take(80) ?: "Lookup failed"
-            } finally {
-                forgotLoading = false
-            }
-        }
-    }
-
-    fun doForgotConfirmEmail() {
-        if (forgotConfirmEmail.isBlank()) { forgotError = "Continue with Google first"; return }
-        if (!forgotConfirmEmail.equals(forgotEmail, ignoreCase = true)) {
-            forgotError = "Email does not match account"
+    fun doForgotReset() {
+        clearErrors()
+        if (forgotNewPass.isBlank()) { authError = "Please enter a new password."; return }
+        if (forgotNewPass.length < 6) { authError = "Password must be at least 6 characters."; return }
+        if (forgotNewPass != forgotConfirmPass) { authError = "Passwords do not match."; return }
+        if (forgotUsername.isBlank()) {
+            authError = "Google verification required."
             return
         }
-        forgotError = ""
-        forgotStep = 2
-    }
-
-    fun doForgotReset() {
-        if (forgotNewPass.isBlank()) { forgotError = "Enter new password"; return }
-        if (forgotNewPass.length < 6) { forgotError = "Min 6 characters"; return }
-        if (forgotNewPass != forgotConfirmPass) { forgotError = "Passwords do not match"; return }
-        forgotError = ""; forgotLoading = true
+        isLoading = true
+        keyboardController?.hide()
         scope.launch {
             try {
-                val filterColumn = if (forgotUsername.isNotBlank()) "username" else "email"
-                val filterValue = if (forgotUsername.isNotBlank()) forgotUsername else forgotEmail
-                SupabaseClient.client.from("users").update(
-                    buildJsonObject { put("password", PasswordHasher.hash(forgotNewPass)) }
-                ) {
-                    filter { eq(filterColumn, filterValue) }
+                val oldProfile = SupabaseClient.client.from("users")
+                    .select(columns = Columns.list("password")) {
+                        filter { eq("username", forgotUsername) }
+                    }
+                    .decodeList<UserProfile>()
+                val oldHash = oldProfile.firstOrNull()?.password
+                if (!oldHash.isNullOrBlank() && PasswordHasher.matches(forgotNewPass, oldHash)) {
+                    authError = "This password is already in use. Please choose a different password."
+                    isLoading = false
+                    return@launch
                 }
-                forgotStep = 3
+
+                val newHash = PasswordHasher.hash(forgotNewPass)
+                SupabaseClient.client.from("users").update(
+                    PasswordUpdate(password = newHash)
+                ) {
+                    filter { eq("username", forgotUsername) }
+                }
+
+                val verify = SupabaseClient.client.from("users")
+                    .select(columns = Columns.list("username", "password")) {
+                        filter { eq("username", forgotUsername) }
+                    }
+                    .decodeList<UserProfile>()
+                val saved = verify.firstOrNull()?.password
+                if (saved.isNullOrBlank() || !PasswordHasher.matches(forgotNewPass, saved)) {
+                    // Fallback update by email if username update did not stick
+                    SupabaseClient.client.from("users").update(
+                        PasswordUpdate(password = newHash)
+                    ) {
+                        filter { eq("email", forgotEmail) }
+                    }
+                    val verify2 = SupabaseClient.client.from("users")
+                        .select(columns = Columns.list("username", "password")) {
+                            filter { eq("email", forgotEmail) }
+                        }
+                        .decodeList<UserProfile>()
+                    val saved2 = verify2.firstOrNull()?.password
+                    if (saved2.isNullOrBlank() || !PasswordHasher.matches(forgotNewPass, saved2)) {
+                        authError = "Password update failed. Check users UPDATE policy in Supabase."
+                        return@launch
+                    }
+                }
+
+                username = forgotUsername
+                password = ""
+                confirmPassword = ""
+                Toast.makeText(context, "Password updated. Please log in.", Toast.LENGTH_SHORT).show()
+                switchPage(0)
+                authError = ""
             } catch (e: Exception) {
-                forgotError = formatDbError(e)
+                authError = formatDbError(e)
             } finally {
-                forgotLoading = false
+                isLoading = false
             }
         }
     }
@@ -356,12 +380,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
             Text("ChexoScan", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
             Spacer(Modifier.height(40.dp))
 
-            when (page) {
-                0 -> {
-                    Box(
-                        modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(DarkBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
+            Box(
+                modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(DarkBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                when (page) {
+                    0 -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(24.dp)
@@ -420,26 +444,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     "Forgot Password?",
                                     color = Color(0xFF90CAF9),
                                     fontSize = 13.sp,
-                                    modifier = Modifier.clickable {
-                                        showForgotDialog = true
-                                        forgotStep = 0
-                                        forgotInput = ""
-                                        forgotInputError = ""
-                                        forgotError = ""
-                                        forgotNewPass = ""
-                                        forgotConfirmPass = ""
-                                        forgotConfirmEmail = ""
-                                    }
+                                    modifier = Modifier.clickable { switchPage(3) }
                                 )
                             }
                         }
                     }
-                }
-                1 -> {
-                    Box(
-                        modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(DarkBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    1 -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(24.dp)
@@ -493,28 +503,15 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             )
                         }
                     }
-                }
-                2 -> {
-                    Box(
-                        modifier = Modifier
-                            .size(300.dp)
-                            .clip(RoundedCornerShape(150.dp))
-                            .background(DarkBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    2 -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(28.dp)
                         ) {
-                            Text(
-                                "Verify Google",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Text("Verify Google", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                "Open Google Sign-In and choose your Gmail from Google",
+                                "Open Google Sign-In and choose your Gmail",
                                 color = Color.White.copy(alpha = 0.85f),
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center
@@ -526,29 +523,15 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                                 shape = RoundedCornerShape(22.dp)
                             ) {
-                                Text(
-                                    "Continue with Google",
-                                    color = DarkBlue,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Continue with Google", color = DarkBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(12.dp))
-                            if (email.isNotBlank()) {
-                                Text(
-                                    email,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.Center
-                                )
-                            } else {
-                                Text(
-                                    "Not verified yet",
-                                    color = Color.White.copy(alpha = 0.6f),
-                                    fontSize = 12.sp
-                                )
-                            }
+                            Text(
+                                if (email.isNotBlank()) email else "Not verified yet",
+                                color = Color.White.copy(alpha = if (email.isNotBlank()) 1f else 0.6f),
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
                             if (emailError.isNotEmpty()) {
                                 Spacer(Modifier.height(6.dp))
                                 Text(emailError, color = ErrorRed, fontSize = 11.sp, textAlign = TextAlign.Center)
@@ -563,191 +546,139 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             )
                         }
                     }
+                    3 -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(28.dp)
+                        ) {
+                            Text("Forgot Password", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "Select your Google account to reset password",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(18.dp))
+                            Button(
+                                onClick = {
+                                    clearErrors()
+                                    openGoogleSignIn()
+                                },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(22.dp),
+                                enabled = !isLoading
+                            ) {
+                                Text("Continue with Google", color = DarkBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Login",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { switchPage(0) }
+                            )
+                        }
+                    }
+                    4 -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text("New Password", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                forgotUsername.ifBlank { forgotEmail },
+                                color = Color(0xFF90CAF9),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            TextField(
+                                value = forgotNewPass,
+                                onValueChange = { forgotNewPass = it; clearErrors() },
+                                placeholder = { Text("New Password", color = Color.Gray, fontSize = 13.sp) },
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                colors = fieldColors,
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            TextField(
+                                value = forgotConfirmPass,
+                                onValueChange = { forgotConfirmPass = it; clearErrors() },
+                                placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
+                                colors = fieldColors,
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Back",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { switchPage(3) }
+                            )
+                        }
+                    }
                 }
             }
 
             if (authError.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                Text(authError, color = ErrorRed, fontSize = 12.sp, textAlign = TextAlign.Center)
+                Text(
+                    authError,
+                    color = ErrorRed,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
             }
             Spacer(Modifier.height(20.dp))
 
-            Button(
-                onClick = {
-                    keyboardController?.hide()
-                    when (page) {
-                        0 -> doLogin()
-                        1 -> doSignupStep1()
-                        2 -> doSignupStep2()
-                    }
-                },
-                modifier = Modifier.width(200.dp).height(50.dp),
-                shape = RoundedCornerShape(25.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
-                enabled = !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Text(
-                        text = if (page == 0) "Login" else "Sign Up",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-
-        if (showForgotDialog) {
-            Dialog(
-                onDismissRequest = { showForgotDialog = false },
-                properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkBlue)
+            if (page != 3) {
+                Button(
+                    onClick = {
+                        keyboardController?.hide()
+                        when (page) {
+                            0 -> doLogin()
+                            1 -> doSignupStep1()
+                            2 -> doSignupStep2()
+                            4 -> doForgotReset()
+                        }
+                    },
+                    modifier = Modifier.width(200.dp).height(50.dp),
+                    shape = RoundedCornerShape(25.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
+                    enabled = !isLoading
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        when (forgotStep) {
-                            0 -> {
-                                Text("Forgot Password", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                TextField(
-                                    value = forgotInput,
-                                    onValueChange = { forgotInput = it; forgotInputError = "" },
-                                    placeholder = { Text("Username or Email", color = Color.Gray, fontSize = 13.sp) },
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                                    colors = fieldColors,
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
-                                )
-                                if (forgotInputError.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(forgotInputError, color = ErrorRed, fontSize = 12.sp)
-                                }
-                            }
-                            1 -> {
-                                Text("Confirm with Google", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Use Google Sign-In to verify the Gmail linked to this account",
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(
-                                    onClick = { openGoogleSignIn() },
-                                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                                    shape = RoundedCornerShape(22.dp)
-                                ) {
-                                    Text(
-                                        "Continue with Google",
-                                        color = DarkBlue,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    if (forgotConfirmEmail.isBlank()) "Not verified yet" else forgotConfirmEmail,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            2 -> {
-                                Text("New Password", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                TextField(
-                                    value = forgotNewPass,
-                                    onValueChange = { forgotNewPass = it; forgotError = "" },
-                                    placeholder = { Text("New Password", color = Color.Gray, fontSize = 13.sp) },
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                                    colors = fieldColors,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TextField(
-                                    value = forgotConfirmPass,
-                                    onValueChange = { forgotConfirmPass = it; forgotError = "" },
-                                    placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
-                                    colors = fieldColors,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
-                                )
-                            }
-                            3 -> {
-                                Text("Done!", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    "Password changed successfully.\nPlease login with your new password.",
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 14.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        if (forgotError.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(forgotError, color = ErrorRed, fontSize = 12.sp, textAlign = TextAlign.Center)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                forgotError = ""
-                                when (forgotStep) {
-                                    0 -> doForgotLookup()
-                                    1 -> doForgotConfirmEmail()
-                                    2 -> doForgotReset()
-                                    3 -> {
-                                        showForgotDialog = false
-                                        forgotStep = 0
-                                    }
-                                }
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = when (page) {
+                                0 -> "Login"
+                                4 -> "Change Password"
+                                else -> "Sign Up"
                             },
-                            modifier = Modifier.fillMaxWidth().height(45.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                            shape = RoundedCornerShape(25.dp),
-                            enabled = !forgotLoading
-                        ) {
-                            if (forgotLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text(
-                                    text = when (forgotStep) {
-                                        0 -> "Next"
-                                        1 -> "Confirm Email"
-                                        2 -> "Reset Password"
-                                        3 -> "Back to Login"
-                                        else -> ""
-                                    },
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
+            } else if (isLoading) {
+                CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
             }
         }
     }

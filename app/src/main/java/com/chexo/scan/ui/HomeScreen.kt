@@ -1,5 +1,6 @@
 package com.chexo.scan.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -14,33 +15,51 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chexo.scan.Product
+import com.chexo.scan.ProductRepository
+import kotlinx.coroutines.launch
 
 private val DarkBlue = Color(0xFF1976D2)
 private val OffWhite = Color(0xFFF5F5F5)
-private val LightGray = Color(0xFFE0E0E0)
 private val IconGray = Color(0xFF888888)
+private val ErrorRed = Color(0xFFFF5252)
 
 @Composable
 fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
@@ -83,9 +102,9 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
         }
 
         when (selectedTab) {
-            0 -> SellPage(modifier = Modifier.weight(1f))
-            1 -> AddPage(modifier = Modifier.weight(1f))
-            2 -> AnalysisPage(modifier = Modifier.weight(1f))
+            0 -> SellPage(username = username, modifier = Modifier.weight(1f))
+            1 -> AddPage(username = username, modifier = Modifier.weight(1f))
+            2 -> AnalysisPage(username = username, modifier = Modifier.weight(1f))
         }
 
         Row(
@@ -106,7 +125,23 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
 }
 
 @Composable
-private fun SellPage(modifier: Modifier = Modifier) {
+private fun SellPage(username: String, modifier: Modifier = Modifier) {
+    var products by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+
+    LaunchedEffect(username) {
+        loading = true
+        error = ""
+        try {
+            products = ProductRepository.listForUser(username)
+        } catch (e: Exception) {
+            error = e.message?.take(120) ?: "Could not load products"
+        } finally {
+            loading = false
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -115,33 +150,46 @@ private fun SellPage(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(160.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .border(2.dp, DarkBlue, RoundedCornerShape(12.dp))
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
-            Text("Scan Barcode", fontSize = 16.sp, color = IconGray)
+            Text("Your products only ($username)", fontSize = 15.sp, color = IconGray)
         }
 
         Spacer(Modifier.height(20.dp))
-
-        Text("Recently Selled Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+        Text("Your Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
         Spacer(Modifier.height(8.dp))
 
-        LazyColumn {
-            items(3) { i ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Product ${i + 1}", fontSize = 14.sp, color = Color.Black)
-                    Text("₹0", fontSize = 14.sp, color = IconGray)
+        when {
+            loading -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                }
+            }
+            error.isNotEmpty() -> Text(error, color = ErrorRed, fontSize = 13.sp)
+            products.isEmpty() -> Text("No products yet. Add items under your account.", color = IconGray, fontSize = 13.sp)
+            else -> {
+                LazyColumn {
+                    items(products, key = { it.id ?: "${it.barcode}-${it.name}" }) { product ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White)
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(product.name ?: "-", fontSize = 14.sp, color = Color.Black)
+                                Text(product.barcode ?: "", fontSize = 12.sp, color = IconGray)
+                            }
+                            Text("₹${product.price ?: 0.0}", fontSize = 14.sp, color = IconGray)
+                        }
+                    }
                 }
             }
         }
@@ -149,26 +197,156 @@ private fun SellPage(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AddPage(modifier: Modifier = Modifier) {
-    Box(
+private fun AddPage(username: String, modifier: Modifier = Modifier) {
+    var barcode by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val fieldColors = TextFieldDefaults.colors(
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        focusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = Color.Transparent
+    )
+
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Add Page", fontSize = 18.sp, color = IconGray)
+        Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Saved under account: $username",
+            fontSize = 13.sp,
+            color = IconGray
+        )
+        Spacer(Modifier.height(16.dp))
+
+        TextField(
+            value = barcode,
+            onValueChange = { barcode = it; error = "" },
+            placeholder = { Text("Barcode", color = Color.Gray) },
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+            colors = fieldColors,
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
+        )
+        Spacer(Modifier.height(10.dp))
+        TextField(
+            value = name,
+            onValueChange = { name = it; error = "" },
+            placeholder = { Text("Product name", color = Color.Gray) },
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+            colors = fieldColors,
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
+        )
+        Spacer(Modifier.height(10.dp))
+        TextField(
+            value = price,
+            onValueChange = { price = it.filter { c -> c.isDigit() || c == '.' }; error = "" },
+            placeholder = { Text("Price", color = Color.Gray) },
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+            colors = fieldColors,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
+        )
+
+        if (error.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(error, color = ErrorRed, fontSize = 13.sp)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = {
+                if (barcode.isBlank() || name.isBlank() || price.isBlank()) {
+                    error = "Please fill barcode, name, and price."
+                    return@Button
+                }
+                val priceValue = price.toDoubleOrNull()
+                if (priceValue == null || priceValue < 0) {
+                    error = "Enter a valid price."
+                    return@Button
+                }
+                saving = true
+                error = ""
+                scope.launch {
+                    try {
+                        ProductRepository.addForUser(
+                            username = username,
+                            barcode = barcode.trim(),
+                            name = name.trim(),
+                            price = priceValue
+                        )
+                        barcode = ""
+                        name = ""
+                        price = ""
+                        Toast.makeText(context, "Saved for $username only", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        error = e.message?.take(140) ?: "Save failed"
+                    } finally {
+                        saving = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
+            shape = RoundedCornerShape(24.dp),
+            enabled = !saving
+        ) {
+            if (saving) {
+                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+            } else {
+                Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
     }
 }
 
 @Composable
-private fun AnalysisPage(modifier: Modifier = Modifier) {
+private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
+    var count by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+
+    LaunchedEffect(username) {
+        loading = true
+        error = ""
+        try {
+            count = ProductRepository.listForUser(username).size
+        } catch (e: Exception) {
+            error = e.message?.take(120) ?: "Could not load analysis"
+        } finally {
+            loading = false
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("Analysis Page", fontSize = 18.sp, color = IconGray)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Your Analysis", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+            Spacer(Modifier.height(8.dp))
+            Text("Account: $username", fontSize = 13.sp, color = IconGray)
+            Spacer(Modifier.height(16.dp))
+            when {
+                loading -> CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                error.isNotEmpty() -> Text(error, color = ErrorRed, fontSize = 13.sp)
+                else -> Text("$count products in your account", fontSize = 16.sp, color = Color.Black)
+            }
+        }
     }
 }
 
@@ -177,11 +355,11 @@ private fun FooterIcon(icon: ImageVector, label: String, selected: Boolean, onCl
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .background(if (selected) DarkBlue.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(8.dp))
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .then(
-                Modifier.padding(0.dp)
+            .background(
+                if (selected) DarkBlue.copy(alpha = 0.1f) else Color.Transparent,
+                RoundedCornerShape(8.dp)
             )
+            .padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
         Icon(
             imageVector = icon,
