@@ -3,12 +3,31 @@ package com.chexo.scan.ui
 import android.graphics.Bitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import java.net.URLEncoder
+import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 object TotpHelper {
     private const val TIME_STEP = 30L
     private const val DIGITS = 6
+    private const val SECRET_BYTES = 20
+
+    fun generateSecret(): String {
+        val bytes = ByteArray(SECRET_BYTES)
+        SecureRandom().nextBytes(bytes)
+        return base32Encode(bytes)
+    }
+
+    fun buildOtpAuthUri(
+        secret: String,
+        accountName: String,
+        issuer: String = "ChexoScan"
+    ): String {
+        val encodedIssuer = URLEncoder.encode(issuer, "UTF-8")
+        val encodedAccount = URLEncoder.encode(accountName, "UTF-8")
+        return "otpauth://totp/$encodedIssuer:$encodedAccount?secret=$secret&issuer=$encodedIssuer&algorithm=SHA1&digits=$DIGITS&period=$TIME_STEP"
+    }
 
     fun verify(secret: String, code: String, window: Int = 1): Boolean {
         return try {
@@ -40,6 +59,25 @@ object TotpHelper {
                 ((hash[offset + 2].toInt() and 0xFF) shl 8) or
                 (hash[offset + 3].toInt() and 0xFF)
         return (code % 1_000_000).toString().padStart(DIGITS, '0')
+    }
+
+    private fun base32Encode(data: ByteArray): String {
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val result = StringBuilder()
+        var buffer = 0
+        var bitsLeft = 0
+        for (byte in data) {
+            buffer = (buffer shl 8) or (byte.toInt() and 0xFF)
+            bitsLeft += 8
+            while (bitsLeft >= 5) {
+                bitsLeft -= 5
+                result.append(alphabet[(buffer shr bitsLeft) and 0x1F])
+            }
+        }
+        if (bitsLeft > 0) {
+            result.append(alphabet[(buffer shl (5 - bitsLeft)) and 0x1F])
+        }
+        return result.toString()
     }
 
     private fun base32Decode(input: String): ByteArray {
