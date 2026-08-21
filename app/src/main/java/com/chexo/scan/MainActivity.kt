@@ -65,10 +65,9 @@ class MainActivity : ComponentActivity() {
                         })
                     } else {
                         LoginScreen(
-                            onLoginSuccess = {
+                            onLoginSuccess = { name ->
                                 loggedIn = true
-                                val user = SupabaseClient.client.auth.currentUserOrNull()
-                                username = user?.userMetadata?.get("username")?.toString() ?: "User"
+                                username = name
                             }
                         )
                     }
