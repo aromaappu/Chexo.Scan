@@ -13,7 +13,10 @@ object SupabaseClient {
         supabaseUrl = SUPABASE_URL,
         supabaseKey = SUPABASE_KEY
     ) {
-        install(Auth)
+        install(Auth) {
+            scheme = "chexoscan"
+            host = "auth-callback"
+        }
         install(Postgrest)
     }
 }
