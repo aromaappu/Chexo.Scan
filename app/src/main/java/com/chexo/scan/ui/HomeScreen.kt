@@ -15,10 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AddCircle
@@ -58,7 +56,6 @@ import kotlinx.coroutines.launch
 private val DarkBlue = Color(0xFF1976D2)
 private val OffWhite = Color(0xFFF5F5F5)
 private val IconGray = Color(0xFF888888)
-private val ErrorRed = Color(0xFFFF5252)
 
 @Composable
 fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
@@ -78,25 +75,11 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(
-                    text = "ChexoScan",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "Welcome, $username",
-                    fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
+                Text("ChexoScan", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Welcome, $username", fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f))
             }
             IconButton(onClick = onLogout) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Logout",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout", tint = Color.White, modifier = Modifier.size(24.dp))
             }
         }
 
@@ -132,18 +115,11 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
 
     LaunchedEffect(username) {
         loading = true
-        try {
-            products = db.localProductDao().getAllForUser(username)
-        } catch (_: Exception) {}
+        try { products = db.localProductDao().getAllForUser(username) } catch (_: Exception) {}
         loading = false
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        Spacer(Modifier.height(8.dp))
+    Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
         Text("Scanned Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
         Spacer(Modifier.height(8.dp))
 
@@ -158,12 +134,8 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                 LazyColumn {
                     items(products, key = { it.id }) { product ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(8.dp)).background(Color.White).padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -190,7 +162,6 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var scannedBarcode by remember { mutableStateOf<String?>(null) }
-    var existingProducts by remember { mutableStateOf<List<LocalProduct>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -202,73 +173,45 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
         unfocusedIndicatorColor = Color.Transparent
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
-            Spacer(Modifier.height(6.dp))
-            Text("Saved under account: $username", fontSize = 13.sp, color = IconGray)
-            Spacer(Modifier.height(12.dp))
+    Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
+        Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+        Spacer(Modifier.height(6.dp))
+        Text("Saved under account: $username", fontSize = 13.sp, color = IconGray)
+        Spacer(Modifier.height(12.dp))
 
-            BarcodeScannerView(
-                onBarcodeScanned = { scannedBarcode = it }
-            )
-            Spacer(Modifier.height(12.dp))
-            Text("— Or enter manually —", fontSize = 13.sp, color = IconGray)
-        }
+        BarcodeScannerView(onBarcodeScanned = { scannedBarcode = it })
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
+        Spacer(Modifier.height(8.dp))
         TextField(
-            value = barcode,
-            onValueChange = { barcode = it; error = "" },
+            value = barcode, onValueChange = { barcode = it; error = "" },
             placeholder = { Text("Barcode", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-            colors = fieldColors,
-            singleLine = true,
-            textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
+            colors = fieldColors, singleLine = true, textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         TextField(
-            value = name,
-            onValueChange = { name = it; error = "" },
+            value = name, onValueChange = { name = it; error = "" },
             placeholder = { Text("Product name", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-            colors = fieldColors,
-            singleLine = true,
-            textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
+            colors = fieldColors, singleLine = true, textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         TextField(
             value = price,
             onValueChange = { price = it.filter { c -> c.isDigit() || c == '.' }; error = "" },
             placeholder = { Text("Price", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-            colors = fieldColors,
-            singleLine = true,
+            colors = fieldColors, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             textStyle = TextStyle(fontSize = 14.sp, color = Color.Black)
         )
 
         if (error.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(error, color = ErrorRed, fontSize = 13.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(error, color = Color(0xFFFF5252), fontSize = 12.sp)
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         Button(
             onClick = {
                 if (barcode.isBlank() || name.isBlank() || price.isBlank()) {
@@ -285,37 +228,25 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                 scope.launch {
                     try {
                         db.localProductDao().insert(
-                            com.chexo.scan.data.LocalProduct(
-                                username = username,
-                                barcode = barcode.trim(),
-                                name = name.trim(),
-                                quantity = 1,
-                                customerPrice = priceValue,
-                                ourPrice = priceValue
+                            LocalProduct(
+                                username = username, barcode = barcode.trim(),
+                                name = name.trim(), quantity = 1,
+                                customerPrice = priceValue, ourPrice = priceValue
                             )
                         )
-                        barcode = ""
-                        name = ""
-                        price = ""
+                        barcode = ""; name = ""; price = ""
                         Toast.makeText(context, "Saved for $username only", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         error = e.message?.take(140) ?: "Save failed"
-                    } finally {
-                        saving = false
-                    }
+                    } finally { saving = false }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
-            shape = RoundedCornerShape(24.dp),
-            enabled = !saving
+            shape = RoundedCornerShape(24.dp), enabled = !saving
         ) {
-            if (saving) {
-                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-            } else {
-                Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
+            if (saving) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+            else Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 
@@ -323,18 +254,12 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
         ScanResultDialog(
             barcode = scannedBarcode!!,
             onDismiss = { scannedBarcode = null },
-            onConfirm = { productName, quantity, customerPrice, ourPrice ->
+            onConfirm = { productName, qty, cp, op ->
                 scope.launch {
                     try {
                         db.localProductDao().insert(
-                            LocalProduct(
-                                username = username,
-                                barcode = scannedBarcode ?: "",
-                                name = productName,
-                                quantity = quantity,
-                                customerPrice = customerPrice,
-                                ourPrice = ourPrice
-                            )
+                            LocalProduct(username = username, barcode = scannedBarcode ?: "",
+                                name = productName, quantity = qty, customerPrice = cp, ourPrice = op)
                         )
                         Toast.makeText(context, "Product saved!", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
@@ -356,18 +281,11 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
 
     LaunchedEffect(username) {
         loading = true
-        try {
-            count = db.localProductDao().getAllForUser(username).size
-        } catch (_: Exception) {}
+        try { count = db.localProductDao().getAllForUser(username).size } catch (_: Exception) {}
         loading = false
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Your Analysis", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
             Spacer(Modifier.height(8.dp))
@@ -384,18 +302,10 @@ private fun FooterIcon(icon: ImageVector, label: String, selected: Boolean, onCl
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .background(
-                if (selected) DarkBlue.copy(alpha = 0.1f) else Color.Transparent,
-                RoundedCornerShape(8.dp)
-            )
+            .background(if (selected) DarkBlue.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(8.dp))
             .padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (selected) DarkBlue else IconGray,
-            modifier = Modifier.size(28.dp)
-        )
+        Icon(icon, contentDescription = label, tint = if (selected) DarkBlue else IconGray, modifier = Modifier.size(28.dp))
         Spacer(Modifier.height(4.dp))
         Text(label, fontSize = 12.sp, color = if (selected) DarkBlue else IconGray)
     }
