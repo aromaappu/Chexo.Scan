@@ -18,9 +18,21 @@ import com.chexo.scan.ui.LoginScreen
 import com.chexo.scan.ui.theme.ChexoScaTheme
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class UserProfile(
+    val id: String? = null,
+    val user_id: String? = null,
+    val username: String? = null,
+    val email: String? = null,
+    val totp_secret: String? = null
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -36,7 +48,16 @@ class MainActivity : ComponentActivity() {
                 val session = SupabaseClient.client.auth.currentSessionOrNull()
                 if (session != null) {
                     val user = SupabaseClient.client.auth.currentUserOrNull()
-                    username = user?.userMetadata?.get("username")?.toString() ?: "User"
+                    if (user != null) {
+                        val profiles = SupabaseClient.client.from("users")
+                            .select(columns = Columns.list("username")) {
+                                filter {
+                                    eq("user_id", user.id)
+                                }
+                            }
+                            .decodeList<UserProfile>()
+                        username = profiles.firstOrNull()?.username ?: "User"
+                    }
                     loggedIn = true
                 }
             } catch (e: Exception) {
@@ -65,9 +86,8 @@ class MainActivity : ComponentActivity() {
                         })
                     } else {
                         LoginScreen(
-                            onLoginSuccess = { name ->
+                            onLoginSuccess = {
                                 loggedIn = true
-                                username = name
                             }
                         )
                     }
