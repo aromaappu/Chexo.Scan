@@ -427,18 +427,26 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     modifier = Modifier.clickable { switchPage(3) }
                                 )
                                 Spacer(Modifier.weight(1f))
-                                Text(
-                                    "G",
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.clickable {
-                                        clearErrors()
-                                        openGoogleSignIn()
-                                    }
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(15.dp))
+                                        .background(Color.White)
+                                        .clickable {
+                                            clearErrors()
+                                            openGoogleSignIn()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "G",
+                                        color = DarkBlue,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(10.dp))
                             Text(
                                 "Sign Up",
                                 color = Color.White,
