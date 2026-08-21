@@ -1,8 +1,6 @@
 package com.chexo.scan.ui
 
 import android.widget.Toast
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -60,15 +58,8 @@ data class UserProfile(
 fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     var page by remember { mutableIntStateOf(0) }
     var pageTarget by remember { mutableIntStateOf(0) }
-    var rotationTarget by remember { mutableFloatStateOf(0f) }
     var contentAlpha by remember { mutableFloatStateOf(1f) }
     var isAnimating by remember { mutableStateOf(false) }
-
-    val rotation by animateFloatAsState(
-        targetValue = rotationTarget,
-        animationSpec = tween(durationMillis = 600),
-        label = "rot"
-    )
 
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -110,7 +101,6 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
         isAnimating = true
         pageTarget = newPage
         contentAlpha = 0f
-        rotationTarget = rotationTarget + 180f
     }
 
     LaunchedEffect(pageTarget) {
@@ -405,8 +395,6 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 modifier = Modifier
                     .size(300.dp)
                     .graphicsLayer {
-                        rotationY = rotation
-                        cameraDistance = 12f * density
                         alpha = contentAlpha
                     },
                 contentAlignment = Alignment.Center
