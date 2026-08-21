@@ -147,17 +147,11 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(2.dp, DarkBlue, RoundedCornerShape(12.dp))
-                .background(Color.White),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Your products only ($username)", fontSize = 15.sp, color = IconGray)
-        }
+        BarcodeScannerView(
+            onBarcodeScanned = { barcode ->
+                // TODO: handle scanned barcode - look up product or navigate
+            }
+        )
 
         Spacer(Modifier.height(20.dp))
         Text("Your Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
