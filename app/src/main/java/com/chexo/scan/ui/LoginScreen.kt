@@ -152,6 +152,31 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                         isLoading = false
                     }
                 }
+            } else if (page == 0) {
+                isLoading = true
+                authError = ""
+                scope.launch {
+                    try {
+                        val all = SupabaseClient.client.from("users")
+                            .select(columns = Columns.list("username", "email"))
+                            .decodeList<UserProfile>()
+                        val profiles = all.filter {
+                            it.email?.trim()?.equals(picked, ignoreCase = true) == true
+                        }
+                        if (profiles.isEmpty()) {
+                            authError = "No account found with this Google. Please sign up first."
+                        } else {
+                            val name = profiles[0].username?.trim() ?: picked
+                            AuthPrefs.saveSession(context, name)
+                            Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                            onLoginSuccess(name)
+                        }
+                    } catch (e: Exception) {
+                        authError = formatDbError(e)
+                    } finally {
+                        isLoading = false
+                    }
+                }
             } else {
                 email = picked
                 emailError = ""
