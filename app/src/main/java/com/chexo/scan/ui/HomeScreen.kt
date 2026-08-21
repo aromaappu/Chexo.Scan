@@ -190,6 +190,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var scannedBarcode by remember { mutableStateOf<String?>(null) }
+    var existingProducts by remember { mutableStateOf<List<LocalProduct>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -204,25 +205,33 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Saved under account: $username",
-            fontSize = 13.sp,
-            color = IconGray
-        )
-        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+            Spacer(Modifier.height(6.dp))
+            Text("Saved under account: $username", fontSize = 13.sp, color = IconGray)
+            Spacer(Modifier.height(12.dp))
 
-        BarcodeScannerView(
-            onBarcodeScanned = { scannedBarcode = it }
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("— Or enter manually —", fontSize = 13.sp, color = IconGray)
-        Spacer(Modifier.height(8.dp))
+            BarcodeScannerView(
+                onBarcodeScanned = { scannedBarcode = it }
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("— Or enter manually —", fontSize = 13.sp, color = IconGray)
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
 
         TextField(
             value = barcode,
@@ -307,6 +316,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
             } else {
                 Text("Save Product", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
+        }
         }
     }
 
