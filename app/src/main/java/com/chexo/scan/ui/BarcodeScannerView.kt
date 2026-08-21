@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,19 +41,19 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
 private val DarkBlue = Color(0xFF1976D2)
-private val IconGray = Color(0xFF888888)
 
 @Composable
 fun BarcodeScannerView(
     onBarcodeScanned: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasCameraPermission by remember { mutableStateOf(
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     ) }
-    var scanned by remember { mutableStateOf(false) }
+    var paused by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -66,6 +65,10 @@ fun BarcodeScannerView(
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    LaunchedEffect(enabled) {
+        if (enabled) paused = false
     }
 
     if (hasCameraPermission) {
@@ -104,8 +107,8 @@ fun BarcodeScannerView(
                             .build()
                             .also { analysis ->
                                 analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                    if (!scanned) {
-                                        @OptIn(androidx.camera.core.ExperimentalGetImage::class)
+                                    if (!paused && enabled) {
+                                        @Suppress("DEPRECATION")
                                         val mediaImage = imageProxy.image
                                         if (mediaImage != null) {
                                             val image = InputImage.fromMediaImage(
@@ -114,19 +117,20 @@ fun BarcodeScannerView(
                                             )
                                             barcodeScanner.process(image)
                                                 .addOnSuccessListener { barcodes ->
-                                                    if (!scanned) {
+                                                    if (!paused && enabled) {
                                                         val barcode = barcodes.firstOrNull {
                                                             it.valueType in listOf(
                                                                 Barcode.TYPE_PRODUCT,
                                                                 Barcode.TYPE_ISBN,
                                                                 Barcode.TYPE_TEXT,
-                                                                Barcode.TYPE_URL
+                                                                Barcode.TYPE_URL,
+                                                                Barcode.TYPE_UNKNOWN
                                                             )
                                                         }
                                                         if (barcode != null) {
                                                             val value = barcode.rawValue ?: barcode.displayValue ?: ""
                                                             if (value.isNotEmpty()) {
-                                                                scanned = true
+                                                                paused = true
                                                                 onBarcodeScanned(value)
                                                             }
                                                         }
@@ -161,17 +165,15 @@ fun BarcodeScannerView(
                 modifier = Modifier.fillMaxSize()
             )
 
-            if (!scanned) {
-                Text(
-                    "Scanning...",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .background(DarkBlue.copy(alpha = 0.7f), RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
+            Text(
+                if (paused) "Paused" else "Scanning...",
+                color = Color.White,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .background(DarkBlue.copy(alpha = 0.7f), RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            )
         }
     } else {
         Box(
@@ -183,7 +185,7 @@ fun BarcodeScannerView(
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
-            Text("Camera permission required to scan", fontSize = 14.sp, color = IconGray)
+            Text("Camera permission required to scan", fontSize = 14.sp, color = Color.Gray)
         }
     }
 }

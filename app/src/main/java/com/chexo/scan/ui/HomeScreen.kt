@@ -2,7 +2,6 @@ package com.chexo.scan.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,8 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chexo.scan.Product
-import com.chexo.scan.ProductRepository
+import com.chexo.scan.data.AppDatabase
+import com.chexo.scan.data.LocalProduct
 import kotlinx.coroutines.launch
 
 private val DarkBlue = Color(0xFF1976D2)
@@ -126,20 +125,19 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
 
 @Composable
 private fun SellPage(username: String, modifier: Modifier = Modifier) {
-    var products by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var products by remember { mutableStateOf<List<LocalProduct>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
+    var scannedBarcode by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getInstance(context) }
 
     LaunchedEffect(username) {
         loading = true
-        error = ""
         try {
-            products = ProductRepository.listForUser(username)
-        } catch (e: Exception) {
-            error = e.message?.take(120) ?: "Could not load products"
-        } finally {
-            loading = false
-        }
+            products = db.localProductDao().getAllForUser(username)
+        } catch (_: Exception) {}
+        loading = false
     }
 
     Column(
@@ -149,12 +147,12 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
     ) {
         BarcodeScannerView(
             onBarcodeScanned = { barcode ->
-                // TODO: handle scanned barcode - look up product or navigate
+                scannedBarcode = barcode
             }
         )
 
         Spacer(Modifier.height(20.dp))
-        Text("Your Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+        Text("Scanned Products", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
         Spacer(Modifier.height(8.dp))
 
         when {
@@ -163,11 +161,10 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                     CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
                 }
             }
-            error.isNotEmpty() -> Text(error, color = ErrorRed, fontSize = 13.sp)
-            products.isEmpty() -> Text("No products yet. Add items under your account.", color = IconGray, fontSize = 13.sp)
+            products.isEmpty() -> Text("No products yet. Scan a barcode to add.", color = IconGray, fontSize = 13.sp)
             else -> {
                 LazyColumn {
-                    items(products, key = { it.id ?: "${it.barcode}-${it.name}" }) { product ->
+                    items(products, key = { it.id }) { product ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -178,15 +175,46 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(product.name ?: "-", fontSize = 14.sp, color = Color.Black)
-                                Text(product.barcode ?: "", fontSize = 12.sp, color = IconGray)
+                                Text(product.name, fontSize = 14.sp, color = Color.Black)
+                                Text("Barcode: ${product.barcode} | Qty: ${product.quantity}", fontSize = 11.sp, color = IconGray)
                             }
-                            Text("₹${product.price ?: 0.0}", fontSize = 14.sp, color = IconGray)
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Customer: Rs.${product.customerPrice}", fontSize = 12.sp, color = DarkBlue)
+                                Text("Our: Rs.${product.ourPrice}", fontSize = 12.sp, color = IconGray)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (scannedBarcode != null) {
+        ScanResultDialog(
+            barcode = scannedBarcode!!,
+            onDismiss = { scannedBarcode = null },
+            onConfirm = { name, quantity, customerPrice, ourPrice ->
+                scope.launch {
+                    try {
+                        db.localProductDao().insert(
+                            LocalProduct(
+                                username = username,
+                                barcode = scannedBarcode ?: "",
+                                name = name,
+                                quantity = quantity,
+                                customerPrice = customerPrice,
+                                ourPrice = ourPrice
+                            )
+                        )
+                        products = db.localProductDao().getAllForUser(username)
+                        Toast.makeText(context, "Product saved!", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    scannedBarcode = null
+                }
+            }
+        )
     }
 }
 
@@ -199,6 +227,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val db = remember { AppDatabase.getInstance(context) }
 
     val fieldColors = TextFieldDefaults.colors(
         focusedContainerColor = Color.White,
@@ -275,11 +304,15 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                 error = ""
                 scope.launch {
                     try {
-                        ProductRepository.addForUser(
-                            username = username,
-                            barcode = barcode.trim(),
-                            name = name.trim(),
-                            price = priceValue
+                        db.localProductDao().insert(
+                            com.chexo.scan.data.LocalProduct(
+                                username = username,
+                                barcode = barcode.trim(),
+                                name = name.trim(),
+                                quantity = 1,
+                                customerPrice = priceValue,
+                                ourPrice = priceValue
+                            )
                         )
                         barcode = ""
                         name = ""
@@ -310,18 +343,15 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
 private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
     var count by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getInstance(context) }
 
     LaunchedEffect(username) {
         loading = true
-        error = ""
         try {
-            count = ProductRepository.listForUser(username).size
-        } catch (e: Exception) {
-            error = e.message?.take(120) ?: "Could not load analysis"
-        } finally {
-            loading = false
-        }
+            count = db.localProductDao().getAllForUser(username).size
+        } catch (_: Exception) {}
+        loading = false
     }
 
     Box(
@@ -335,11 +365,8 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
             Text("Account: $username", fontSize = 13.sp, color = IconGray)
             Spacer(Modifier.height(16.dp))
-            when {
-                loading -> CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
-                error.isNotEmpty() -> Text(error, color = ErrorRed, fontSize = 13.sp)
-                else -> Text("$count products in your account", fontSize = 16.sp, color = Color.Black)
-            }
+            if (loading) CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+            else Text("$count products in your account", fontSize = 16.sp, color = Color.Black)
         }
     }
 }

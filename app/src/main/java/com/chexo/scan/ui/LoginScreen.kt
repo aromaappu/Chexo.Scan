@@ -168,6 +168,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                         } else {
                             val name = profiles[0].username?.trim() ?: picked
                             AuthPrefs.saveSession(context, name)
+                            AuthPrefs.saveAccount(context, name, picked)
                             Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
                             onLoginSuccess(name)
                         }
@@ -216,6 +217,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
 
     fun finishLogin(name: String) {
         AuthPrefs.saveSession(context, name)
+        AuthPrefs.saveAccount(context, name, email)
         Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
         onLoginSuccess(name)
     }

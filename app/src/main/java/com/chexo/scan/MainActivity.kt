@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
 
         if (AuthPrefs.isLoggedIn(this)) {
             loggedIn = true
-            username = AuthPrefs.getUsername(this)
+            username = AuthPrefs.getCurrentUsername(this)
         }
 
         setContent {

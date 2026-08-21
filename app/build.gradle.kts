@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -67,6 +68,11 @@ dependencies {
 
     // ML Kit Barcode
     implementation(libs.mlkit.barcode)
+
+    // Room Database
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
