@@ -113,7 +113,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Icon(Icons.Default.AccountCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(40.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(username, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Text(username, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                             Text("Logged in account", fontSize = 12.sp, color = colors.gray)
                         }
                     }
@@ -176,7 +176,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Backup Data", fontSize = 14.sp, color = Color.Black)
+                            Text("Backup Data", fontSize = 14.sp, color = colors.onBackground)
                             Text("Save all products & sales as JSON", fontSize = 11.sp, color = colors.gray)
                         }
                     }
@@ -190,7 +190,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Icon(Icons.Default.Refresh, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Restore Data", fontSize = 14.sp, color = Color.Black)
+                            Text("Restore Data", fontSize = 14.sp, color = colors.onBackground)
                             Text("Import backup (same account only)", fontSize = 11.sp, color = colors.gray)
                         }
                     }
@@ -215,7 +215,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Icon(Icons.Default.AccountCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Stay Logged In", fontSize = 14.sp, color = Color.Black)
+                            Text("Stay Logged In", fontSize = 14.sp, color = colors.onBackground)
                             Text("Off = requires login on app restart", fontSize = 11.sp, color = colors.gray)
                         }
                         androidx.compose.material3.Switch(
@@ -278,8 +278,8 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
         val options = listOf("58mm", "80mm", "A4", "A5")
         AlertDialog(
             onDismissRequest = { showPrinterDialog = false },
-            containerColor = Color.White,
-            title = { Text("Printer Size", fontWeight = FontWeight.Bold, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Printer Size", fontWeight = FontWeight.Bold, color = colors.onBackground) },
             text = {
                 Column {
                     options.forEach { size ->
@@ -293,10 +293,10 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         ) {
                             Box(
                                 modifier = Modifier.size(18.dp).clip(RoundedCornerShape(9.dp))
-                                    .background(if (printerSize == size) colors.primary else Color.LightGray)
+                                    .background(if (printerSize == size) colors.primary else colors.gray)
                             )
                             Spacer(Modifier.width(12.dp))
-                            Text(size, fontSize = 15.sp, color = Color.Black)
+                            Text(size, fontSize = 15.sp, color = colors.onBackground)
                         }
                     }
                 }
@@ -310,11 +310,11 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
         var limitText by remember { mutableStateOf(lowStockLimit.toString()) }
         AlertDialog(
             onDismissRequest = { showLowStockDialog = false },
-            containerColor = Color.White,
-            title = { Text("Low Stock Limit", fontWeight = FontWeight.Bold, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Low Stock Limit", fontWeight = FontWeight.Bold, color = colors.onBackground) },
             text = {
                 Column {
-                    Text("Products with quantity at or below this limit will be highlighted.", color = Color.Black, fontSize = 13.sp)
+                    Text("Products with quantity at or below this limit will be highlighted.", color = colors.onBackground, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = limitText,
@@ -323,8 +323,8 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black,
+                            focusedTextColor = colors.onBackground,
+                            unfocusedTextColor = colors.onBackground,
                             focusedBorderColor = colors.primary,
                             unfocusedBorderColor = colors.gray
                         )
@@ -350,8 +350,8 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
         val options = listOf("Light", "Dark", "System")
         AlertDialog(
             onDismissRequest = { showThemeDialog = false },
-            containerColor = Color.White,
-            title = { Text("Theme", fontWeight = FontWeight.Bold, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Theme", fontWeight = FontWeight.Bold, color = colors.onBackground) },
             text = {
                 Column {
                     options.forEach { t ->
@@ -365,10 +365,10 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         ) {
                             Box(
                                 modifier = Modifier.size(18.dp).clip(RoundedCornerShape(9.dp))
-                                    .background(if (theme == t) colors.primary else Color.LightGray)
+                                    .background(if (theme == t) colors.primary else colors.gray)
                             )
                             Spacer(Modifier.width(12.dp))
-                            Text(t, fontSize = 15.sp, color = Color.Black)
+                            Text(t, fontSize = 15.sp, color = colors.onBackground)
                         }
                     }
                 }
@@ -384,15 +384,15 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
         var confirmPw by remember { mutableStateOf("") }
         var error by remember { mutableStateOf("") }
         val fieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.Black, unfocusedTextColor = Color.Black,
+            focusedTextColor = colors.onBackground, unfocusedTextColor = colors.onBackground,
             focusedBorderColor = colors.primary, unfocusedBorderColor = colors.gray,
             focusedLabelColor = colors.primary, unfocusedLabelColor = colors.gray
         )
 
         AlertDialog(
             onDismissRequest = { showChangePasswordDialog = false },
-            containerColor = Color.White,
-            title = { Text("Change Password", fontWeight = FontWeight.Bold, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Change Password", fontWeight = FontWeight.Bold, color = colors.onBackground) },
             text = {
                 Column {
                     if (error.isNotEmpty()) {
@@ -467,11 +467,11 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
 
         AlertDialog(
             onDismissRequest = { showRestoreDialog = false },
-            containerColor = Color.White,
-            title = { Text("Restore Backup", fontWeight = FontWeight.Bold, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Restore Backup", fontWeight = FontWeight.Bold, color = colors.onBackground) },
             text = {
                 Column {
-                    Text("Select a .json backup file from your device.", fontSize = 13.sp, color = Color.Black)
+                    Text("Select a .json backup file from your device.", fontSize = 13.sp, color = colors.onBackground)
                     Spacer(Modifier.height(4.dp))
                     Text("Backup must belong to '$username'.", fontSize = 12.sp, color = colors.gray)
                     Spacer(Modifier.height(8.dp))
@@ -503,7 +503,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
 
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false; confirmStep = 1; confirmText = "" },
-            containerColor = Color.White,
+            containerColor = colors.surface,
             title = {
                 Text(
                     if (confirmStep == 1) "Delete Account?" else "Type 'DELETE' to confirm",
@@ -516,14 +516,14 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                     if (confirmStep == 1) {
                         Icon(Icons.Default.Warning, contentDescription = null, tint = colors.error, modifier = Modifier.size(40.dp))
                         Spacer(Modifier.height(8.dp))
-                        Text("This will permanently delete:", fontSize = 13.sp, color = Color.Black)
-                        Text("• All products", fontSize = 13.sp, color = Color.Black)
-                        Text("• All sales history", fontSize = 13.sp, color = Color.Black)
-                        Text("• Account data", fontSize = 13.sp, color = Color.Black)
+                        Text("This will permanently delete:", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• All products", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• All sales history", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• Account data", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(4.dp))
                         Text("This cannot be undone!", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
                     } else {
-                        Text("Type DELETE below:", fontSize = 13.sp, color = Color.Black)
+                        Text("Type DELETE below:", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = confirmText,
@@ -532,7 +532,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black, unfocusedTextColor = Color.Black,
+                                focusedTextColor = colors.onBackground, unfocusedTextColor = colors.onBackground,
                                 focusedBorderColor = colors.primary, unfocusedBorderColor = colors.gray
                             )
                         )
@@ -572,7 +572,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
 
         AlertDialog(
             onDismissRequest = { showClearDataDialog = false; clearStep = 1; clearText = "" },
-            containerColor = Color.White,
+            containerColor = colors.surface,
             title = {
                 Text(
                     if (clearStep == 1) "Clear All Data?" else "Type 'CLEAR' to confirm",
@@ -585,13 +585,13 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                     if (clearStep == 1) {
                         Icon(Icons.Default.Warning, contentDescription = null, tint = colors.error, modifier = Modifier.size(40.dp))
                         Spacer(Modifier.height(8.dp))
-                        Text("This will permanently delete:", fontSize = 13.sp, color = Color.Black)
-                        Text("• All products", fontSize = 13.sp, color = Color.Black)
-                        Text("• All sales history", fontSize = 13.sp, color = Color.Black)
+                        Text("This will permanently delete:", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• All products", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• All sales history", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(4.dp))
                         Text("Your account will remain. This cannot be undone!", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
                     } else {
-                        Text("Type CLEAR below:", fontSize = 13.sp, color = Color.Black)
+                        Text("Type CLEAR below:", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = clearText,
@@ -600,7 +600,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black, unfocusedTextColor = Color.Black,
+                                focusedTextColor = colors.onBackground, unfocusedTextColor = colors.onBackground,
                                 focusedBorderColor = colors.primary, unfocusedBorderColor = colors.gray
                             )
                         )
@@ -639,9 +639,9 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            containerColor = Color.White,
-            title = { Text("Logout?", fontWeight = FontWeight.Bold, color = Color.Black) },
-            text = { Text("Are you sure you want to logout?", fontSize = 14.sp, color = Color.Black) },
+            containerColor = colors.surface,
+            title = { Text("Logout?", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+            text = { Text("Are you sure you want to logout?", fontSize = 14.sp, color = colors.onBackground) },
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutDialog = false
@@ -665,10 +665,11 @@ private fun SectionHeader(title: String) {
 
 @Composable
 private fun Card(content: @Composable () -> Unit) {
+    val colors = LocalAppColors.current
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
+            .background(colors.surface)
     ) { content() }
 }
 
@@ -681,7 +682,7 @@ private fun SettingRow(label: String, value: String, icon: androidx.compose.ui.g
     ) {
         Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(label, fontSize = 14.sp, color = Color.Black, modifier = Modifier.weight(1f))
+        Text(label, fontSize = 14.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
         Text(value, fontSize = 13.sp, color = colors.gray)
         Spacer(Modifier.width(8.dp))
         Text("›", fontSize = 18.sp, color = colors.gray)

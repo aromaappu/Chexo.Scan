@@ -387,8 +387,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     }
 
     val fieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = colors.background,
-        unfocusedContainerColor = colors.background,
+        focusedContainerColor = colors.surfaceVariant,
+        unfocusedContainerColor = colors.surfaceVariant,
         focusedIndicatorColor = Color.Transparent,
         unfocusedIndicatorColor = Color.Transparent
     )
@@ -419,11 +419,11 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = username,
                                 onValueChange = { username = it; clearErrors() },
-                                placeholder = { Text("Shop Name or Email", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Shop Name or Email", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground),
                                 isError = usernameError.isNotEmpty()
                             )
                             if (usernameError.isNotEmpty()) Text(usernameError, color = colors.error, fontSize = 10.sp)
@@ -431,12 +431,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = password,
                                 onValueChange = { password = it; clearErrors() },
-                                placeholder = { Text("Password", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Password", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground),
                                 isError = passwordError.isNotEmpty()
                             )
                             if (passwordError.isNotEmpty()) Text(passwordError, color = colors.error, fontSize = 10.sp)
@@ -456,7 +456,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     modifier = Modifier
                                         .size(30.dp)
                                         .clip(RoundedCornerShape(15.dp))
-                                        .background(Color.White)
+                                        .background(colors.surface)
                                         .clickable {
                                             clearErrors()
                                             openGoogleSignIn()
@@ -491,11 +491,11 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = username,
                                 onValueChange = { username = it; clearErrors() },
-                                placeholder = { Text("Shop Name", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Shop Name", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground),
                                 isError = usernameError.isNotEmpty()
                             )
                             if (usernameError.isNotEmpty()) Text(usernameError, color = colors.error, fontSize = 10.sp)
@@ -503,12 +503,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = password,
                                 onValueChange = { password = it; clearErrors() },
-                                placeholder = { Text("Password", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Password", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground),
                                 isError = passwordError.isNotEmpty()
                             )
                             if (passwordError.isNotEmpty()) Text(passwordError, color = colors.error, fontSize = 10.sp)
@@ -516,12 +516,12 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = confirmPassword,
                                 onValueChange = { confirmPassword = it; clearErrors() },
-                                placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Confirm Password", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground),
                                 isError = confirmError.isNotEmpty()
                             )
                             if (confirmError.isNotEmpty()) Text(confirmError, color = colors.error, fontSize = 10.sp)
@@ -552,7 +552,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             Button(
                                 onClick = { openGoogleSignIn() },
                                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
                                 shape = RoundedCornerShape(22.dp)
                             ) {
                                 Text("Continue with Google", color = colors.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -598,7 +598,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                     openGoogleSignIn()
                                 },
                                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
                                 shape = RoundedCornerShape(22.dp),
                                 enabled = !isLoading
                             ) {
@@ -631,23 +631,23 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = forgotNewPass,
                                 onValueChange = { forgotNewPass = it; clearErrors() },
-                                placeholder = { Text("New Password", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("New Password", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                             )
                             Spacer(Modifier.height(8.dp))
                             TextField(
                                 value = forgotConfirmPass,
                                 onValueChange = { forgotConfirmPass = it; clearErrors() },
-                                placeholder = { Text("Confirm Password", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Confirm Password", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 visualTransformation = PasswordVisualTransformation(),
                                 singleLine = true,
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                                textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(

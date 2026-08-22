@@ -102,7 +102,7 @@ fun ScanResultDialog(
                     name.ifBlank { "Unnamed" },
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = Color.Black,
+                    color = colors.onBackground,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -150,7 +150,7 @@ fun ScanResultDialog(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     colors = fieldColors,
                     singleLine = true,
-                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                    textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                 )
 
                 TextField(
@@ -161,7 +161,7 @@ fun ScanResultDialog(
                     colors = fieldColors,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                    textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                 )
 
                 TextField(
@@ -172,7 +172,7 @@ fun ScanResultDialog(
                     colors = fieldColors,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                    textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                 )
 
                 TextField(
@@ -183,7 +183,7 @@ fun ScanResultDialog(
                     colors = fieldColors,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    textStyle = TextStyle(fontSize = 13.sp, color = Color.Black)
+                    textStyle = TextStyle(fontSize = 13.sp, color = colors.onBackground)
                 )
 
                 if (error.isNotEmpty()) {

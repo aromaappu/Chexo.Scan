@@ -22,11 +22,15 @@ data class AppColors(
     val primaryDark: Color = AppPrimaryDark,
     val background: Color = AppBackground,
     val surface: Color = AppSurface,
+    val surfaceVariant: Color = AppSurfaceVariant,
     val onPrimary: Color = AppOnPrimary,
     val onBackground: Color = AppOnBackground,
+    val onSurfaceSecondary: Color = AppOnSurfaceSecondary,
     val gray: Color = AppGray,
     val error: Color = AppError,
     val link: Color = AppLink,
+    val warning: Color = AppWarning,
+    val warningText: Color = AppWarningText,
     val isDark: Boolean = false
 )
 
@@ -36,11 +40,15 @@ val DarkAppColors = AppColors(
     primaryDark = AppPrimaryDarkDark,
     background = AppBackgroundDark,
     surface = AppSurfaceDark,
+    surfaceVariant = AppSurfaceVariantDark,
     onPrimary = AppOnPrimaryDark,
     onBackground = AppOnBackgroundDark,
+    onSurfaceSecondary = AppOnSurfaceSecondaryDark,
     gray = AppGrayDark,
     error = AppErrorDark,
     link = AppLinkDark,
+    warning = AppWarningDark,
+    warningText = AppWarningTextDark,
     isDark = true
 )
 

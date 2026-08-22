@@ -137,7 +137,7 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White)
+                .background(colors.surface)
                 .padding(top = 12.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
@@ -204,12 +204,12 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                 items(billItems, key = { it.id.toString() + "_" + it.timestamp }) { product ->
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(8.dp)).background(Color.White).padding(12.dp),
+                            .clip(RoundedCornerShape(8.dp)).background(colors.surface).padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(product.name, fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Medium)
+                            Text(product.name, fontSize = 14.sp, color = colors.onBackground, fontWeight = FontWeight.Medium)
                             Text("Barcode: ${product.barcode}", fontSize = 11.sp, color = colors.gray)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -323,6 +323,31 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                             Text("Print", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
+                    Button(
+                        onClick = {
+                            generatingBill = true
+                            scope.launch {
+                                try {
+                                    reduceQuantities(db, billItems, username)
+                                    Toast.makeText(context, "Bill saved!", Toast.LENGTH_SHORT).show()
+                                    billItems = emptyList()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                                generatingBill = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                        enabled = !generatingBill
+                    ) {
+                        if (generatingBill) {
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        } else {
+                            Text("Bill", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -433,8 +458,8 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
+                    focusedTextColor = colors.onBackground,
+                    unfocusedTextColor = colors.onBackground,
                     cursorColor = colors.primary,
                     focusedBorderColor = colors.primary,
                     unfocusedBorderColor = colors.gray
@@ -470,14 +495,14 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                         modifier = Modifier.fillMaxWidth()
                             .padding(vertical = 3.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isOutOfStock) Color(0xFFFFF3E0) else Color.White)
+                            .background(if (isOutOfStock) colors.warning else colors.surface)
                             .clickable { editingProduct = product }
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(product.name, fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Medium)
+                            Text(product.name, fontSize = 14.sp, color = colors.onBackground, fontWeight = FontWeight.Medium)
                             Text("Barcode: ${product.barcode}", fontSize = 11.sp, color = colors.gray)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +515,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                                     Text(
                                         "Qty: ${product.quantity}",
                                         fontSize = 12.sp,
-                                        color = if (isOutOfStock) Color(0xFFFF9800) else colors.primary,
+                                        color = if (isOutOfStock) colors.warningText else colors.primary,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -855,10 +880,10 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                             ) {
                                 Text(dayLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
-                            DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(Color.White)) {
+                            DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 dayList.forEach { item ->
                                     DropdownMenuItem(
-                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedDay) Color.White else Color.Black, fontWeight = if (item == selectedDay) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedDay) colors.primary else Color.Transparent).padding(4.dp)) },
+                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedDay) Color.White else colors.onBackground, fontWeight = if (item == selectedDay) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedDay) colors.primary else Color.Transparent).padding(4.dp)) },
                                         onClick = { selectedDay = item; dayExpanded = false }
                                     )
                                 }
@@ -879,10 +904,10 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                             ) {
                                 Text(monthLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
-                            DropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(Color.White)) {
+                            DropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 monthList.forEach { item ->
                                     DropdownMenuItem(
-                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedMonth) Color.White else Color.Black, fontWeight = if (item == selectedMonth) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedMonth) colors.primary else Color.Transparent).padding(4.dp)) },
+                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedMonth) Color.White else colors.onBackground, fontWeight = if (item == selectedMonth) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedMonth) colors.primary else Color.Transparent).padding(4.dp)) },
                                         onClick = { selectedMonth = item; monthExpanded = false }
                                     )
                                 }
@@ -903,10 +928,10 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                             ) {
                                 Text(yearLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
-                            DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(Color.White)) {
+                            DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 yearList.forEach { item ->
                                     DropdownMenuItem(
-                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedYear) Color.White else Color.Black, fontWeight = if (item == selectedYear) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedYear) colors.primary else Color.Transparent).padding(4.dp)) },
+                                        text = { Text(item, fontSize = 13.sp, color = if (item == selectedYear) Color.White else colors.onBackground, fontWeight = if (item == selectedYear) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (item == selectedYear) colors.primary else Color.Transparent).padding(4.dp)) },
                                         onClick = { selectedYear = item; yearExpanded = false }
                                     )
                                 }
@@ -932,8 +957,8 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                                 modifier = Modifier.fillMaxWidth().clickable { productExpanded = true },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.Black,
-                                    unfocusedTextColor = Color.Black,
+                                    focusedTextColor = colors.onBackground,
+                                    unfocusedTextColor = colors.onBackground,
                                     focusedBorderColor = colors.primary,
                                     unfocusedBorderColor = colors.gray
                                 )
@@ -944,16 +969,16 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                             DropdownMenu(
                                 expanded = productExpanded,
                                 onDismissRequest = { productExpanded = false },
-                                modifier = Modifier.heightIn(max = 220.dp).background(Color.White)
+                                modifier = Modifier.heightIn(max = 220.dp).background(colors.surface)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("All Products", fontSize = 14.sp, color = if (selectedProductName == null) Color.White else Color.Black, fontWeight = if (selectedProductName == null) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (selectedProductName == null) colors.primary else Color.Transparent).padding(4.dp)) },
+                                    text = { Text("All Products", fontSize = 14.sp, color = if (selectedProductName == null) Color.White else colors.onBackground, fontWeight = if (selectedProductName == null) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (selectedProductName == null) colors.primary else Color.Transparent).padding(4.dp)) },
                                     onClick = { selectedProductName = null; productExpanded = false }
                                 )
                                 productNames.forEach { name ->
                                     val isSel = selectedProductName == name
                                     DropdownMenuItem(
-                                        text = { Text(name, fontSize = 14.sp, color = if (isSel) Color.White else Color.Black, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (isSel) colors.primary else Color.Transparent).padding(4.dp)) },
+                                        text = { Text(name, fontSize = 14.sp, color = if (isSel) Color.White else colors.onBackground, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (isSel) colors.primary else Color.Transparent).padding(4.dp)) },
                                         onClick = { selectedProductName = name; productExpanded = false }
                                     )
                                 }
@@ -969,7 +994,7 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                         Box(
                             modifier = Modifier.fillMaxWidth().height(200.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White)
+                                .background(colors.surface)
                                 .padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -979,7 +1004,7 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                         Box(
                             modifier = Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White)
+                                .background(colors.surface)
                                 .padding(top = 8.dp, bottom = 4.dp)
                         ) {
                             Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
@@ -1006,7 +1031,7 @@ private fun StatCard(label: String, value: String, color: Color, modifier: Modif
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
+            .background(colors.surface)
             .padding(12.dp)
     ) {
         Text(label, fontSize = 11.sp, color = colors.gray)
