@@ -36,8 +36,8 @@ data class AppColors(
 
 val LightAppColors = AppColors()
 val DarkAppColors = AppColors(
-    primary = AppPrimaryDarkTheme,
-    primaryDark = AppPrimaryDarkDark,
+    primary = AppPrimary,
+    primaryDark = AppPrimaryDark,
     background = AppBackgroundDark,
     surface = AppSurfaceDark,
     surfaceVariant = AppSurfaceVariantDark,
@@ -66,8 +66,8 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = AppPrimaryDarkTheme,
-    onPrimary = AppOnPrimaryDark,
+    primary = AppPrimary,
+    onPrimary = AppOnPrimary,
     background = AppBackgroundDark,
     surface = AppSurfaceDark,
     onBackground = AppOnBackgroundDark,
@@ -93,9 +93,6 @@ fun ChexoScaTheme(content: @Composable () -> Unit) {
     }
 
     val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
         isDark -> DarkColorScheme
         else -> LightColorScheme
     }
