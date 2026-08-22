@@ -268,6 +268,62 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         }
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ── About ──
+            item {
+                SectionHeader("About")
+                Card {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("ChexoScan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "ChexoScan is a simple POS and stock management app made for small shop owners.",
+                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Scan packed product barcodes while adding stock or making a bill. Quickly calculate the total, check available stock, identify out-of-stock products, and understand your shop's sales, profit, or loss.",
+                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "ChexoScan works without an internet connection for normal scanning, stock management, and billing.",
+                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text("Made for small shop owners.", fontSize = 13.sp, color = colors.gray)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Version: 1.0.0", fontSize = 13.sp, color = colors.gray)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ── Privacy Policy ──
+            item {
+                SectionHeader("Privacy Policy")
+                Card {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("ChexoScan Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Last Updated: August 22, 2026", fontSize = 11.sp, color = colors.gray)
+                        Spacer(Modifier.height(10.dp))
+
+                        PrivacyItem("1. Information We Collect", "ChexoScan collects your username and password for account login. Passwords are securely stored in hashed form. If you use Google verification, we store your Gmail address for account verification.")
+                        PrivacyItem("2. Product Data", "Product information such as product name, price, and related product details is stored locally on your device. We do not collect this information on our servers.")
+                        PrivacyItem("3. Backup and Restore", "ChexoScan allows you to create a JSON backup file and save it to your local storage. A backup can only be restored when the same account is logged in.")
+                        PrivacyItem("4. Camera Permission", "ChexoScan uses your camera only for scanning product barcodes. Camera data is not collected or stored by us.")
+                        PrivacyItem("5. Data Sharing", "Your personal information is not sold or shared with third parties.")
+                        PrivacyItem("6. Analytics", "ChexoScan does not use analytics or tracking services to track your activity.")
+                        PrivacyItem("7. Account Deletion", "You can delete your account from the app. When your account is deleted, we do not retain the deleted account data.")
+                        PrivacyItem("8. Contact Us", "For support, suggestions, or privacy questions, contact us at: aromalkp0597h@gmail.com")
+
+                        Spacer(Modifier.height(10.dp))
+                        Text("By using ChexoScan, you agree to this Privacy Policy.", fontSize = 12.sp, color = colors.gray, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }
@@ -686,6 +742,17 @@ private fun SettingRow(label: String, value: String, icon: androidx.compose.ui.g
         Text(value, fontSize = 13.sp, color = colors.gray)
         Spacer(Modifier.width(8.dp))
         Text("›", fontSize = 18.sp, color = colors.gray)
+    }
+}
+
+@Composable
+private fun PrivacyItem(title: String, content: String) {
+    val colors = LocalAppColors.current
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+        Spacer(Modifier.height(2.dp))
+        Text(content, fontSize = 12.sp, color = colors.gray, lineHeight = 16.sp)
+        Spacer(Modifier.height(6.dp))
     }
 }
 

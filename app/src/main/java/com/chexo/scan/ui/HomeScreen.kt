@@ -1244,16 +1244,39 @@ private fun generatePdf(context: Context, products: List<LocalProduct>, username
         Toast.makeText(context, "PDF failed: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
+// ─────────────────────────────────────────────────────────
+//  PRINT — uses printer size from Settings
+// ─────────────────────────────────────────────────────────
+private fun getPrinterPageSize(printerSize: String): Pair<Int, Int> {
+    return when (printerSize) {
+        "58mm"  -> Pair(164, 500)
+        "80mm"  -> Pair(226, 700)
+        "A5"    -> Pair(420, 595)
+        else    -> Pair(595, 842)
+    }
+}
 
-// ─────────────────────────────────────────────────────────
-//  PRINT
-// ─────────────────────────────────────────────────────────
+private fun getPrintMediaSize(printerSize: String): PrintAttributes.MediaSize {
+    return when (printerSize) {
+        "58mm"  -> PrintAttributes.MediaSize("roll_58mm", "58mm", 580, 2830)
+        "80mm"  -> PrintAttributes.MediaSize("roll_80mm", "80mm", 800, 2830)
+        "A5"    -> PrintAttributes.MediaSize("iso_a5", "A5", 14800, 21000)
+        else    -> PrintAttributes.MediaSize("iso_a4", "A4", 21000, 29700)
+    }
+}
+
 private fun printBill(context: Context, products: List<LocalProduct>, username: String) {
     try {
+        val printerSize = SettingsData.getPrinterSize(context)
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
         val jobName = "ChexoScan_Bill_${System.currentTimeMillis()}"
-        val adapter = BillPrintAdapter(context, products, username)
-        printManager.print(jobName, adapter, PrintAttributes.Builder().build())
+        val adapter = BillPrintAdapter(context, products, username, printerSize)
+        val mediaSize = getPrintMediaSize(printerSize)
+        val attrs = PrintAttributes.Builder()
+            .setMediaSize(mediaSize)
+            .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
+            .build()
+        printManager.print(jobName, adapter, attrs)
     } catch (e: Exception) {
         Toast.makeText(context, "Print failed: ${e.message}", Toast.LENGTH_SHORT).show()
     }
@@ -1262,7 +1285,8 @@ private fun printBill(context: Context, products: List<LocalProduct>, username: 
 private class BillPrintAdapter(
     private val ctx: Context,
     private val products: List<LocalProduct>,
-    private val username: String
+    private val username: String,
+    private val printerSize: String
 ) : PrintDocumentAdapter() {
 
     override fun onLayout(
@@ -1286,7 +1310,7 @@ private class BillPrintAdapter(
         callback: WriteResultCallback
     ) {
         val document = PdfDocument()
-        val page = drawBill(document, products, username)
+        val page = drawBill(document, products, username, printerSize)
         document.finishPage(page)
         try {
             FileOutputStream(destination.fileDescriptor).use { out ->
@@ -1301,55 +1325,70 @@ private class BillPrintAdapter(
     }
 }
 
-private fun drawBill(document: PdfDocument, products: List<LocalProduct>, username: String): PdfDocument.Page {
-    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+private fun drawBill(document: PdfDocument, products: List<LocalProduct>, username: String, printerSize: String = "A4"): PdfDocument.Page {
+    val (pageWidth, pageHeight) = getPrinterPageSize(printerSize)
+    val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
     val page = document.startPage(pageInfo)
     val canvas = page.canvas
 
+    val margin = 20f
+    val usableWidth = pageWidth - margin * 2
+    val rateX = margin + usableWidth * 0.55f
+    val amountX = margin + usableWidth * 0.78f
+    val lineRight = pageWidth - margin
+
+    val isSmall = pageWidth < 300
+    val titleSize = if (isSmall) 14f else 20f
+    val headerSize = if (isSmall) 10f else 12f
+    val bodySize = if (isSmall) 9f else 11f
+    val totalSize = if (isSmall) 11f else 14f
+
     val titlePaint = android.graphics.Paint().apply {
-        textSize = 20f; isFakeBoldText = true; color = android.graphics.Color.parseColor("#1976D2")
+        setTextSize(titleSize); isFakeBoldText = true; setColor(android.graphics.Color.parseColor("#1976D2"))
     }
-    val textPaint = android.graphics.Paint().apply { textSize = 11f; color = android.graphics.Color.DKGRAY }
+    val textPaint = android.graphics.Paint().apply { setTextSize(bodySize); setColor(android.graphics.Color.DKGRAY) }
     val headerPaint = android.graphics.Paint().apply {
-        textSize = 12f; isFakeBoldText = true; color = android.graphics.Color.BLACK
+        setTextSize(headerSize); isFakeBoldText = true; setColor(android.graphics.Color.BLACK)
     }
     val linePaint = android.graphics.Paint().apply {
-        color = android.graphics.Color.LTGRAY; strokeWidth = 1f
+        setColor(android.graphics.Color.LTGRAY); strokeWidth = 1f
     }
 
-    var y = 50f
-    canvas.drawText("ChexoScan - Bill", 40f, y, titlePaint)
-    y += 25f
-    canvas.drawText("Shop: $username", 40f, y, textPaint)
-    y += 15f
-    canvas.drawText("Date: ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())}", 40f, y, textPaint)
-    y += 25f
-    canvas.drawLine(40f, y, 555f, y, linePaint)
-    y += 20f
+    var y = 30f
+    val titleText = if (isSmall) "Bill" else "ChexoScan - Bill"
+    canvas.drawText(titleText, margin, y, titlePaint)
+    y += titleSize + 8f
+    canvas.drawText("Shop: $username", margin, y, textPaint)
+    y += bodySize + 4f
+    canvas.drawText("Date: ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())}", margin, y, textPaint)
+    y += bodySize + 8f
+    canvas.drawLine(margin, y, lineRight, y, linePaint)
+    y += 12f
 
-    canvas.drawText("Item", 40f, y, headerPaint)
-    canvas.drawText("Rate", 300f, y, headerPaint)
-    canvas.drawText("Amount", 430f, y, headerPaint)
-    y += 5f
-    canvas.drawLine(40f, y, 555f, y, linePaint)
-    y += 18f
+    canvas.drawText("Item", margin, y, headerPaint)
+    canvas.drawText("Rate", rateX, y, headerPaint)
+    canvas.drawText("Amount", amountX, y, headerPaint)
+    y += 3f
+    canvas.drawLine(margin, y, lineRight, y, linePaint)
+    y += 12f
 
     var total = 0.0
     for (p in products) {
         val amount = p.customerPrice * p.quantity
         total += amount
-        canvas.drawText(p.name.take(30), 40f, y, textPaint)
-        canvas.drawText("Rs.${p.customerPrice}", 300f, y, textPaint)
-        canvas.drawText("Rs.${"%.2f".format(amount)}", 430f, y, textPaint)
-        y += 20f
+        val maxNameLen = if (isSmall) 15 else 30
+        canvas.drawText(p.name.take(maxNameLen), margin, y, textPaint)
+        canvas.drawText("Rs.${p.customerPrice}", rateX, y, textPaint)
+        canvas.drawText("Rs.${"%.2f".format(amount)}", amountX, y, textPaint)
+        y += bodySize + 6f
     }
 
     y += 5f
-    canvas.drawLine(40f, y, 555f, y, linePaint)
-    y += 20f
+    canvas.drawLine(margin, y, lineRight, y, linePaint)
+    y += 15f
     val totalPaint = android.graphics.Paint().apply {
-        textSize = 14f; isFakeBoldText = true; color = android.graphics.Color.parseColor("#1976D2")
+        setTextSize(totalSize); isFakeBoldText = true; setColor(android.graphics.Color.parseColor("#1976D2"))
     }
-    canvas.drawText("TOTAL: Rs.${"%.2f".format(total)}", 40f, y, totalPaint)
+    canvas.drawText("TOTAL: Rs.${"%.2f".format(total)}", margin, y, totalPaint)
     return page
 }

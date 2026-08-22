@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,7 +49,7 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import com.chexo.scan.ui.theme.LocalAppColors
 
-private const val IDLE_TIMEOUT_MS = 5 * 60 * 1000L
+private const val IDLE_TIMEOUT_MS = 35 * 60 * 1000L
 
 private fun playBeep(context: android.content.Context) {
     try {
@@ -88,6 +91,7 @@ fun BarcodeScannerView(
         }
     }
 
+    // Idle timeout — auto-pause after 35 minutes
     LaunchedEffect(paused) {
         if (!paused) {
             lastScanTime = System.currentTimeMillis()
@@ -101,6 +105,14 @@ fun BarcodeScannerView(
         }
     }
 
+    // Clean up handler when composable is removed (tab switch)
+    DisposableEffect(Unit) {
+        onDispose {
+            paused = true
+            handler.removeCallbacksAndMessages(null)
+        }
+    }
+
     if (hasCameraPermission) {
         Box(
             modifier = modifier
@@ -108,6 +120,7 @@ fun BarcodeScannerView(
                 .height(120.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .border(2.dp, colors.primary, RoundedCornerShape(12.dp))
+                .background(if (paused) colors.surface else Color.Black)
                 .clickable {
                     if (paused) {
                         paused = false
@@ -118,112 +131,135 @@ fun BarcodeScannerView(
                 },
             contentAlignment = Alignment.Center
         ) {
-            val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-            val barcodeScanner = remember { BarcodeScanning.getClient() }
+            if (!paused) {
+                // Camera is ON — show preview and scan
+                val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+                val barcodeScanner = remember { BarcodeScanning.getClient() }
 
-            DisposableEffect(Unit) {
-                onDispose {
-                    cameraExecutor.shutdown()
-                    barcodeScanner.close()
-                    handler.removeCallbacksAndMessages(null)
+                DisposableEffect(Unit) {
+                    onDispose {
+                        cameraExecutor.shutdown()
+                        barcodeScanner.close()
+                        handler.removeCallbacksAndMessages(null)
+                    }
                 }
-            }
 
-            AndroidView(
-                factory = { ctx ->
-                    val previewView = PreviewView(ctx)
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx)
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
 
-                        val preview = Preview.Builder().build().also {
-                            it.surfaceProvider = previewView.surfaceProvider
-                        }
+                            val preview = Preview.Builder().build().also {
+                                it.surfaceProvider = previewView.surfaceProvider
+                            }
 
-                        val imageAnalysis = ImageAnalysis.Builder()
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
-                            .also { analysis ->
-                                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                    if (!paused && enabled) {
-                                        @Suppress("DEPRECATION")
-                                        val mediaImage = imageProxy.image
-                                        if (mediaImage != null) {
-                                            val image = InputImage.fromMediaImage(
-                                                mediaImage,
-                                                imageProxy.imageInfo.rotationDegrees
-                                            )
-                                            barcodeScanner.process(image)
-                                                .addOnSuccessListener { barcodes ->
-                                                    if (!paused && enabled) {
-                                                        val barcode = barcodes.firstOrNull {
-                                                            it.valueType in listOf(
-                                                                Barcode.TYPE_PRODUCT,
-                                                                Barcode.TYPE_ISBN,
-                                                                Barcode.TYPE_TEXT,
-                                                                Barcode.TYPE_URL,
-                                                                Barcode.TYPE_UNKNOWN
-                                                            )
-                                                        }
-                                                        if (barcode != null) {
-                                                            val value = barcode.rawValue ?: barcode.displayValue ?: ""
-                                                            if (value.isNotEmpty()) {
-                                                                paused = true
-                                                                lastScanTime = System.currentTimeMillis()
-                                                                playBeep(ctx)
-                                                                onBarcodeScanned(value)
-                                                                handler.postDelayed({
-                                                                    paused = false
+                            val imageAnalysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+                                .also { analysis ->
+                                    analysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                        if (!paused && enabled) {
+                                            @Suppress("DEPRECATION")
+                                            val mediaImage = imageProxy.image
+                                            if (mediaImage != null) {
+                                                val image = InputImage.fromMediaImage(
+                                                    mediaImage,
+                                                    imageProxy.imageInfo.rotationDegrees
+                                                )
+                                                barcodeScanner.process(image)
+                                                    .addOnSuccessListener { barcodes ->
+                                                        if (!paused && enabled) {
+                                                            val barcode = barcodes.firstOrNull {
+                                                                it.valueType in listOf(
+                                                                    Barcode.TYPE_PRODUCT,
+                                                                    Barcode.TYPE_ISBN,
+                                                                    Barcode.TYPE_TEXT,
+                                                                    Barcode.TYPE_URL,
+                                                                    Barcode.TYPE_UNKNOWN
+                                                                )
+                                                            }
+                                                            if (barcode != null) {
+                                                                val value = barcode.rawValue ?: barcode.displayValue ?: ""
+                                                                if (value.isNotEmpty()) {
+                                                                    paused = true
                                                                     lastScanTime = System.currentTimeMillis()
-                                                                }, 1500)
+                                                                    playBeep(ctx)
+                                                                    onBarcodeScanned(value)
+                                                                    handler.postDelayed({
+                                                                        paused = false
+                                                                        lastScanTime = System.currentTimeMillis()
+                                                                    }, 1500)
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
-                                                .addOnCompleteListener {
-                                                    imageProxy.close()
-                                                }
+                                                    .addOnCompleteListener {
+                                                        imageProxy.close()
+                                                    }
+                                            } else {
+                                                imageProxy.close()
+                                            }
                                         } else {
                                             imageProxy.close()
                                         }
-                                    } else {
-                                        imageProxy.close()
                                     }
                                 }
-                            }
 
-                        try {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
-                                preview,
-                                imageAnalysis
-                            )
-                        } catch (_: Exception) {}
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    CameraSelector.DEFAULT_BACK_CAMERA,
+                                    preview,
+                                    imageAnalysis
+                                )
+                            } catch (_: Exception) {}
 
-                    }, ContextCompat.getMainExecutor(ctx))
+                        }, ContextCompat.getMainExecutor(ctx))
 
-                    previewView
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        if (paused) Color(0x88888888) else colors.primary.copy(alpha = 0.7f),
-                        RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-                    )
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    if (paused) "⏸ Paused — Tap to Scan" else "Scanning...",
-                    color = Color.White,
-                    fontSize = 12.sp
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
+
+                // Scanning indicator
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            colors.primary.copy(alpha = 0.7f),
+                            RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                        )
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Text("Scanning...", color = Color.White, fontSize = 12.sp)
+                }
+            } else {
+                // Camera is OFF — show tap to scan placeholder
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Color(0x88888888),
+                            RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                        )
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Text("⏸ Paused — Tap to Scan", color = Color.White, fontSize = 12.sp)
+                }
             }
         }
     } else {
