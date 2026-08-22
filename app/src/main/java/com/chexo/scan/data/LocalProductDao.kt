@@ -19,6 +19,9 @@ interface LocalProductDao {
     @Query("SELECT * FROM local_products WHERE id = :id")
     suspend fun getById(id: Long): LocalProduct?
 
+    @Query("SELECT * FROM local_products WHERE barcode = :barcode AND username = :username LIMIT 1")
+    suspend fun getByBarcodeForUser(barcode: String, username: String): LocalProduct?
+
     @Query("DELETE FROM local_products WHERE id = :id")
     suspend fun deleteById(id: Long)
 

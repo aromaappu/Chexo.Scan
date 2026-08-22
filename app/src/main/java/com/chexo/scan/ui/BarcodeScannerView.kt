@@ -2,6 +2,10 @@ package com.chexo.scan.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -11,6 +15,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,8 +44,19 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
+import com.chexo.scan.ui.theme.LocalAppColors
 
-private val DarkBlue = Color(0xFF1976D2)
+private const val IDLE_TIMEOUT_MS = 5 * 60 * 1000L
+
+private fun playBeep(context: android.content.Context) {
+    try {
+        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+        Handler(Looper.getMainLooper()).postDelayed({
+            try { toneGen.release() } catch (_: Exception) {}
+        }, 300)
+    } catch (_: Exception) {}
+}
 
 @Composable
 fun BarcodeScannerView(
@@ -48,12 +64,17 @@ fun BarcodeScannerView(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    val colors = LocalAppColors.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var hasCameraPermission by remember { mutableStateOf(
-        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-    ) }
-    var paused by remember { mutableStateOf(false) }
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var paused by remember { mutableStateOf(true) }
+    var lastScanTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    val handler = remember { Handler(Looper.getMainLooper()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -67,8 +88,17 @@ fun BarcodeScannerView(
         }
     }
 
-    LaunchedEffect(enabled) {
-        if (enabled) paused = false
+    LaunchedEffect(paused) {
+        if (!paused) {
+            lastScanTime = System.currentTimeMillis()
+            while (!paused) {
+                kotlinx.coroutines.delay(10_000)
+                if (System.currentTimeMillis() - lastScanTime > IDLE_TIMEOUT_MS) {
+                    paused = true
+                    break
+                }
+            }
+        }
     }
 
     if (hasCameraPermission) {
@@ -77,7 +107,15 @@ fun BarcodeScannerView(
                 .fillMaxWidth()
                 .height(120.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .border(2.dp, DarkBlue, RoundedCornerShape(12.dp)),
+                .border(2.dp, colors.primary, RoundedCornerShape(12.dp))
+                .clickable {
+                    if (paused) {
+                        paused = false
+                        lastScanTime = System.currentTimeMillis()
+                    } else {
+                        paused = true
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
             val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -87,6 +125,7 @@ fun BarcodeScannerView(
                 onDispose {
                     cameraExecutor.shutdown()
                     barcodeScanner.close()
+                    handler.removeCallbacksAndMessages(null)
                 }
             }
 
@@ -131,7 +170,13 @@ fun BarcodeScannerView(
                                                             val value = barcode.rawValue ?: barcode.displayValue ?: ""
                                                             if (value.isNotEmpty()) {
                                                                 paused = true
+                                                                lastScanTime = System.currentTimeMillis()
+                                                                playBeep(ctx)
                                                                 onBarcodeScanned(value)
+                                                                handler.postDelayed({
+                                                                    paused = false
+                                                                    lastScanTime = System.currentTimeMillis()
+                                                                }, 1500)
                                                             }
                                                         }
                                                     }
@@ -165,15 +210,21 @@ fun BarcodeScannerView(
                 modifier = Modifier.fillMaxSize()
             )
 
-            Text(
-                if (paused) "Paused" else "Scanning...",
-                color = Color.White,
-                fontSize = 13.sp,
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .background(DarkBlue.copy(alpha = 0.7f), RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                    .background(
+                        if (paused) Color(0x88888888) else colors.primary.copy(alpha = 0.7f),
+                        RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+                    )
                     .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            ) {
+                Text(
+                    if (paused) "⏸ Paused — Tap to Scan" else "Scanning...",
+                    color = Color.White,
+                    fontSize = 12.sp
+                )
+            }
         }
     } else {
         Box(
@@ -181,8 +232,8 @@ fun BarcodeScannerView(
                 .fillMaxWidth()
                 .height(120.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .border(2.dp, DarkBlue, RoundedCornerShape(12.dp))
-                .background(Color.White),
+                .border(2.dp, colors.primary, RoundedCornerShape(12.dp))
+                .background(colors.surface),
             contentAlignment = Alignment.Center
         ) {
             Text("Camera permission required to scan", fontSize = 14.sp, color = Color.Gray)

@@ -1,6 +1,5 @@
 package com.chexo.scan.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,50 +8,97 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.chexo.scan.SettingsData
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+@Immutable
+data class AppColors(
+    val primary: Color = AppPrimary,
+    val primaryDark: Color = AppPrimaryDark,
+    val background: Color = AppBackground,
+    val surface: Color = AppSurface,
+    val onPrimary: Color = AppOnPrimary,
+    val onBackground: Color = AppOnBackground,
+    val gray: Color = AppGray,
+    val error: Color = AppError,
+    val link: Color = AppLink,
+    val isDark: Boolean = false
 )
+
+val LightAppColors = AppColors()
+val DarkAppColors = AppColors(
+    primary = AppPrimaryDarkTheme,
+    primaryDark = AppPrimaryDarkDark,
+    background = AppBackgroundDark,
+    surface = AppSurfaceDark,
+    onPrimary = AppOnPrimaryDark,
+    onBackground = AppOnBackgroundDark,
+    gray = AppGrayDark,
+    error = AppErrorDark,
+    link = AppLinkDark,
+    isDark = true
+)
+
+val LocalAppColors = staticCompositionLocalOf { LightAppColors }
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = AppPrimary,
+    onPrimary = AppOnPrimary,
+    background = AppBackground,
+    surface = AppSurface,
+    onBackground = AppOnBackground,
+    error = AppError,
+    secondary = AppPrimaryDark,
+    tertiary = AppLink
 )
 
-@Composable
-fun ChexoScaTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+private val DarkColorScheme = darkColorScheme(
+    primary = AppPrimaryDarkTheme,
+    onPrimary = AppOnPrimaryDark,
+    background = AppBackgroundDark,
+    surface = AppSurfaceDark,
+    onBackground = AppOnBackgroundDark,
+    error = AppErrorDark,
+    secondary = AppPrimaryDarkDark,
+    tertiary = AppLinkDark
+)
 
-        darkTheme -> DarkColorScheme
+var themeChangeCounter = mutableStateOf(0)
+
+@Composable
+fun ChexoScaTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    @Suppress("UNUSED_VARIABLE")
+    val counter = themeChangeCounter.value
+
+    val savedTheme = SettingsData.getTheme(context)
+
+    val isDark = when (savedTheme) {
+        "Dark" -> true
+        "Light" -> false
+        else -> isSystemInDarkTheme()
+    }
+
+    val colorScheme = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        isDark -> DarkColorScheme
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val appColors = if (isDark) DarkAppColors else LightAppColors
+
+    CompositionLocalProvider(LocalAppColors provides appColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

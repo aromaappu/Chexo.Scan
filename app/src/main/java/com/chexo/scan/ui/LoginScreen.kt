@@ -34,10 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-
-private val OffWhite = Color(0xFFF5F5F5)
-private val DarkBlue = Color(0xFF1976D2)
-private val ErrorRed = Color(0xFFFF5252)
+import com.chexo.scan.ui.theme.LocalAppColors
 
 @Serializable
 data class UserProfile(
@@ -79,6 +76,7 @@ private fun formatDbError(e: Exception): String {
 
 @Composable
 fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
+    val colors = LocalAppColors.current
     // 0 login | 1 signup | 2 signup google | 3 forgot google | 4 forgot new password
     var page by remember { mutableIntStateOf(0) }
     var username by remember { mutableStateOf("") }
@@ -224,7 +222,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
 
     fun doSignupStep1() {
         clearErrors()
-        if (username.isBlank()) { usernameError = "Username is required"; return }
+        if (username.isBlank()) { usernameError = "Shop name is required"; return }
         if (username.length < 3) { usernameError = "Min 3 characters"; return }
         if (password.isBlank()) { passwordError = "Password is required"; return }
         if (password.length < 6) { passwordError = "Min 6 characters"; return }
@@ -248,7 +246,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                     }
                     .decodeList<UserProfile>()
                 if (existingUser.isNotEmpty()) {
-                    authError = "This username is already registered. Please choose another or log in."
+                    authError = "This shop name is already registered. Please choose another or log in."
                     return@launch
                 }
                 val all = SupabaseClient.client.from("users")
@@ -295,7 +293,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                         it.email?.equals(loginId, ignoreCase = true) == true
                 }
                 if (profiles.isEmpty()) {
-                    authError = "No account found with this username. Please sign up to create one."
+                    authError = "No account found. Please sign up to create one."
                     return@launch
                 }
                 val profile = profiles[0]
@@ -389,25 +387,25 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     }
 
     val fieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = Color(0xFFF0F0F0),
-        unfocusedContainerColor = Color(0xFFF0F0F0),
+        focusedContainerColor = colors.background,
+        unfocusedContainerColor = colors.background,
         focusedIndicatorColor = Color.Transparent,
         unfocusedIndicatorColor = Color.Transparent
     )
 
     Box(
-        modifier = Modifier.fillMaxSize().background(OffWhite).imePadding(),
+        modifier = Modifier.fillMaxSize().background(colors.background).imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("ChexoScan", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = DarkBlue)
+            Text("ChexoScan", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = colors.primary)
             Spacer(Modifier.height(40.dp))
 
             Box(
-                modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(DarkBlue),
+                modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(colors.primary),
                 contentAlignment = Alignment.Center
             ) {
                 when (page) {
@@ -421,14 +419,14 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = username,
                                 onValueChange = { username = it; clearErrors() },
-                                placeholder = { Text("Username", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Shop Name or Email", color = Color.Gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 singleLine = true,
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
                                 isError = usernameError.isNotEmpty()
                             )
-                            if (usernameError.isNotEmpty()) Text(usernameError, color = ErrorRed, fontSize = 10.sp)
+                            if (usernameError.isNotEmpty()) Text(usernameError, color = colors.error, fontSize = 10.sp)
                             Spacer(Modifier.height(8.dp))
                             TextField(
                                 value = password,
@@ -441,7 +439,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
                                 isError = passwordError.isNotEmpty()
                             )
-                            if (passwordError.isNotEmpty()) Text(passwordError, color = ErrorRed, fontSize = 10.sp)
+                            if (passwordError.isNotEmpty()) Text(passwordError, color = colors.error, fontSize = 10.sp)
                             Spacer(Modifier.height(4.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -450,7 +448,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             ) {
                                 Text(
                                     "Forgot Password?",
-                                    color = Color(0xFF90CAF9),
+                                    color = colors.link,
                                     fontSize = 11.sp,
                                     modifier = Modifier.clickable { switchPage(3) }
                                 )
@@ -467,7 +465,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 ) {
                                     Text(
                                         "G",
-                                        color = DarkBlue,
+                                        color = colors.primary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -493,14 +491,14 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = username,
                                 onValueChange = { username = it; clearErrors() },
-                                placeholder = { Text("Username", color = Color.Gray, fontSize = 13.sp) },
+                                placeholder = { Text("Shop Name", color = Color.Gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 singleLine = true,
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
                                 isError = usernameError.isNotEmpty()
                             )
-                            if (usernameError.isNotEmpty()) Text(usernameError, color = ErrorRed, fontSize = 10.sp)
+                            if (usernameError.isNotEmpty()) Text(usernameError, color = colors.error, fontSize = 10.sp)
                             Spacer(Modifier.height(8.dp))
                             TextField(
                                 value = password,
@@ -513,7 +511,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
                                 isError = passwordError.isNotEmpty()
                             )
-                            if (passwordError.isNotEmpty()) Text(passwordError, color = ErrorRed, fontSize = 10.sp)
+                            if (passwordError.isNotEmpty()) Text(passwordError, color = colors.error, fontSize = 10.sp)
                             Spacer(Modifier.height(8.dp))
                             TextField(
                                 value = confirmPassword,
@@ -526,7 +524,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color.Black),
                                 isError = confirmError.isNotEmpty()
                             )
-                            if (confirmError.isNotEmpty()) Text(confirmError, color = ErrorRed, fontSize = 10.sp)
+                            if (confirmError.isNotEmpty()) Text(confirmError, color = colors.error, fontSize = 10.sp)
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "Login",
@@ -557,7 +555,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                                 shape = RoundedCornerShape(22.dp)
                             ) {
-                                Text("Continue with Google", color = DarkBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Continue with Google", color = colors.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(12.dp))
                             Text(
@@ -568,7 +566,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             )
                             if (emailError.isNotEmpty()) {
                                 Spacer(Modifier.height(6.dp))
-                                Text(emailError, color = ErrorRed, fontSize = 11.sp, textAlign = TextAlign.Center)
+                                Text(emailError, color = colors.error, fontSize = 11.sp, textAlign = TextAlign.Center)
                             }
                             Spacer(Modifier.height(12.dp))
                             Text(
@@ -604,7 +602,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                                 shape = RoundedCornerShape(22.dp),
                                 enabled = !isLoading
                             ) {
-                                Text("Continue with Google", color = DarkBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Continue with Google", color = colors.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(12.dp))
                             Text(
@@ -625,7 +623,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 forgotUsername.ifBlank { forgotEmail },
-                                color = Color(0xFF90CAF9),
+                                color = colors.link,
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.Center
                             )
@@ -668,7 +666,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                 Spacer(Modifier.height(12.dp))
                 Text(
                     authError,
-                    color = ErrorRed,
+                    color = colors.error,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -689,7 +687,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                     },
                     modifier = Modifier.width(200.dp).height(50.dp),
                     shape = RoundedCornerShape(25.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
@@ -712,7 +710,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                     }
                 }
             } else if (isLoading) {
-                CircularProgressIndicator(color = DarkBlue, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                CircularProgressIndicator(color = colors.primary, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
             }
         }
     }

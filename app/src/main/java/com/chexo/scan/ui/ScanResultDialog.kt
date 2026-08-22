@@ -1,6 +1,8 @@
 package com.chexo.scan.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,12 +26,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-
-private val DarkBlue = Color(0xFF1976D2)
-private val ErrorRed = Color(0xFFFF5252)
+import com.chexo.scan.ui.theme.LocalAppColors
 
 @Composable
 fun ScanResultDialog(
@@ -41,8 +42,11 @@ fun ScanResultDialog(
     editCustomerPrice: Double = 0.0,
     editOurPrice: Double = 0.0,
     isEdit: Boolean = false,
-    onDelete: (() -> Unit)? = null
+    isAlreadyAdded: Boolean = false,
+    onDelete: (() -> Unit)? = null,
+    onAddQuantity: ((Int) -> Unit)? = null
 ) {
+    val colors = LocalAppColors.current
     var name by remember { mutableStateOf(editName) }
     var quantity by remember { mutableStateOf(editQuantity.toString()) }
     var customerPrice by remember { mutableStateOf(if (editCustomerPrice > 0) editCustomerPrice.toString() else "") }
@@ -50,8 +54,8 @@ fun ScanResultDialog(
     var error by remember { mutableStateOf("") }
 
     val fieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = Color(0xFFF0F0F0),
-        unfocusedContainerColor = Color(0xFFF0F0F0),
+        focusedContainerColor = colors.background,
+        unfocusedContainerColor = colors.background,
         focusedIndicatorColor = Color.Transparent,
         unfocusedIndicatorColor = Color.Transparent
     )
@@ -60,21 +64,84 @@ fun ScanResultDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = colors.surface)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Header area with product name
+                if (isAlreadyAdded) {
+                    Text(
+                        "Already Added!",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFFFF9800)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                } else if (isEdit) {
+                    Text(
+                        "Edit Product",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = colors.primary
+                    )
+                    Spacer(Modifier.height(2.dp))
+                } else {
+                    Text(
+                        "New Product",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = colors.primary
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+
+                // Product name as header
                 Text(
-                    if (isEdit) "Edit Product" else "Scan Result",
+                    name.ifBlank { "Unnamed" },
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = DarkBlue
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
-                Spacer(Modifier.height(4.dp))
-                Text("Barcode: $barcode", fontSize = 13.sp, color = Color.Gray)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(2.dp))
+                Text("Barcode: $barcode", fontSize = 12.sp, color = Color.Gray)
+                Spacer(Modifier.height(12.dp))
+
+                // "Already Added" quick action
+                if (isAlreadyAdded && onAddQuantity != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("This product is already in your list", fontSize = 12.sp, color = Color(0xFFE65100))
+                            Text("Current Qty: $editQuantity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                        }
+                        TextButton(onClick = { onAddQuantity(1) }) {
+                            Text("+1", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        }
+                        TextButton(onClick = { onAddQuantity(5) }) {
+                            Text("+5", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("— or edit details below —", fontSize = 11.sp, color = Color.Gray)
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // Form fields
+                if (name.isBlank() && !isAlreadyAdded) {
+                    // Empty name for new product - show name field first
+                }
 
                 TextField(
                     value = name,
@@ -121,10 +188,10 @@ fun ScanResultDialog(
 
                 if (error.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
-                    Text(error, color = ErrorRed, fontSize = 12.sp)
+                    Text(error, color = colors.error, fontSize = 12.sp)
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
                 TextButton(onClick = {
                     if (name.isBlank()) { error = "Enter product name"; return@TextButton }
@@ -134,16 +201,16 @@ fun ScanResultDialog(
                     onConfirm(name.trim(), qty, cp, op)
                 }) {
                     Text(
-                        if (isEdit) "Update Product" else "Save Product",
+                        if (isEdit || isAlreadyAdded) "Update Product" else "Save Product",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DarkBlue
+                        color = colors.primary
                     )
                 }
 
                 if (isEdit && onDelete != null) {
                     TextButton(onClick = { onDelete() }) {
-                        Text("Delete Product", fontSize = 14.sp, color = ErrorRed)
+                        Text("Delete Product", fontSize = 14.sp, color = colors.error)
                     }
                 }
 

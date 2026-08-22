@@ -23,9 +23,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        if (AuthPrefs.isLoggedIn(this)) {
+        if (AuthPrefs.isLoggedIn(this) && SettingsData.getStayLoggedIn(this)) {
             loggedIn = true
             username = AuthPrefs.getCurrentUsername(this)
+        } else {
+            AuthPrefs.clearSession(this)
         }
 
         setContent {
