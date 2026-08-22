@@ -2,6 +2,7 @@ package com.chexo.scan.ui
 
 import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -79,6 +80,14 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
     val colors = LocalAppColors.current
     // 0 login | 1 signup | 2 signup google | 3 forgot google | 4 forgot new password
     var page by remember { mutableIntStateOf(0) }
+
+    BackHandler(enabled = page != 0) {
+        when (page) {
+            1, 3, 4 -> page = 0
+            2 -> page = 1
+        }
+    }
+
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }

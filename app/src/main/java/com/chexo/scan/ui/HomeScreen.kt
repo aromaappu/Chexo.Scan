@@ -57,6 +57,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,6 +101,13 @@ fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
     val colors = LocalAppColors.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
+
+    BackHandler {
+        when {
+            showSettings -> showSettings = false
+            selectedTab > 0 -> selectedTab = 0
+        }
+    }
 
     if (showSettings) {
         SettingsScreen(username = username, onBack = { showSettings = false }, onLogout = onLogout)
