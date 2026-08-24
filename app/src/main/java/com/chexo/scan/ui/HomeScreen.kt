@@ -17,6 +17,7 @@ import android.print.PrintManager
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -174,6 +175,21 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
     val db = remember { AppDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
 
+    // Recent sales state
+    var recentSales by remember { mutableStateOf<List<Sale>>(emptyList()) }
+    var selectedSaleItems by remember { mutableStateOf<List<Sale>?>(null) }
+    var deleteConfirmSale by remember { mutableStateOf<List<Sale>?>(null) }
+
+    fun loadRecentSales() {
+        scope.launch {
+            try {
+                recentSales = db.saleDao().getRecentSales(username, 50)
+            } catch (_: Exception) {}
+        }
+    }
+
+    LaunchedEffect(username) { loadRecentSales() }
+
     Column(modifier = modifier.fillMaxWidth()) {
         // Scanner
         Column(
@@ -287,6 +303,7 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                                     generatePdf(context, billItems, username)
                                     reduceQuantities(db, billItems, username)
                                     billItems = emptyList()
+                                    loadRecentSales()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -312,6 +329,7 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                                     printBill(context, billItems, username)
                                     reduceQuantities(db, billItems, username)
                                     billItems = emptyList()
+                                    loadRecentSales()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -339,6 +357,7 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                                     reduceQuantities(db, billItems, username)
                                     Toast.makeText(context, "Bill saved!", Toast.LENGTH_SHORT).show()
                                     billItems = emptyList()
+                                    loadRecentSales()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -360,13 +379,145 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(8.dp))
             }
         } else {
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Scan a barcode to start selling", color = colors.gray, fontSize = 13.sp)
+            // Recent sales when no bill items
+            Spacer(Modifier.height(4.dp))
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
+                Text("Recent Sales", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                Spacer(Modifier.height(6.dp))
+                if (recentSales.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No recent sales", color = colors.gray, fontSize = 13.sp)
+                    }
+                } else {
+                    // Group sales by soldAt (within 5 seconds = same bill)
+                    val grouped = recentSales.groupBy { sale ->
+                        recentSales.filter { it.soldAt - sale.soldAt in -5000L..5000L }.minOf { it.soldAt }
+                    }.values.distinct().take(5)
+                    Column(modifier = Modifier.weight(1f)) {
+                        grouped.forEachIndexed { index, items ->
+                            val total = items.sumOf { it.totalAmount }
+                            val itemCount = items.size
+                            val timeStr = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+                                .format(java.util.Date(items.first().soldAt))
+                            val customerNum = index + 1
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                    .clickable { selectedSaleItems = items }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Customer $customerNum", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                                        Text("$itemCount item${if (itemCount > 1) "s" else ""} • $timeStr", fontSize = 11.sp, color = colors.gray)
+                                    }
+                                    Text("Rs.${"%.2f".format(total)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                                    // Delete bucket button
+                                    androidx.compose.material3.IconButton(
+                                        onClick = { deleteConfirmSale = items },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = colors.error, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // Sale detail popup
+    if (selectedSaleItems != null) {
+        val items = selectedSaleItems!!
+        val total = items.sumOf { it.totalAmount }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { selectedSaleItems = null },
+            containerColor = colors.surface,
+            title = {
+                Text("Bill Details", fontWeight = FontWeight.Bold, color = colors.onBackground)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    items.forEach { sale ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(sale.productName, fontSize = 13.sp, color = colors.onBackground, fontWeight = FontWeight.Medium)
+                                Text("Qty: ${sale.quantitySold} × Rs.${"%.0f".format(sale.unitPrice)}", fontSize = 11.sp, color = colors.gray)
+                            }
+                            Text("Rs.${"%.2f".format(sale.totalAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.background))
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                        Text("Rs.${"%.2f".format(total)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { selectedSaleItems = null }) {
+                    Text("Close", color = colors.primary)
+                }
+            }
+        )
+    }
+
+    // Delete sale confirmation dialog
+    if (deleteConfirmSale != null) {
+        val saleItems = deleteConfirmSale!!
+        val saleTotal = saleItems.sumOf { it.totalAmount }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteConfirmSale = null },
+            containerColor = colors.surface,
+            title = { Text("Delete Sale?", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+            text = { Text("Delete this sale of Rs.${"%.2f".format(saleTotal)}? Stock will be restored.", color = colors.onBackground) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                var restored = 0
+                                for (sale in saleItems) {
+                                    val product = db.localProductDao().getByBarcodeForUser(sale.barcode, username)
+                                    if (product != null) {
+                                        db.localProductDao().update(product.copy(quantity = product.quantity + sale.quantitySold))
+                                        restored++
+                                    }
+                                }
+                                db.saleDao().deleteByIds(saleItems.map { it.id })
+                                Toast.makeText(context, "Deleted. Stock restored: $restored items", Toast.LENGTH_SHORT).show()
+                                loadRecentSales()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        deleteConfirmSale = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.error)
+                ) { Text("Delete", color = Color.White) }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { deleteConfirmSale = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.gray)
+                ) { Text("Cancel", color = Color.White) }
+            }
+        )
     }
 
     // Handle scan - lookup in Add section DB
@@ -423,6 +574,7 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     var editingProduct by remember { mutableStateOf<LocalProduct?>(null) }
     var duplicateProduct by remember { mutableStateOf<LocalProduct?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var deleteConfirmProduct by remember { mutableStateOf<LocalProduct?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = remember { AppDatabase.getInstance(context) }
@@ -437,22 +589,15 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
     LaunchedEffect(username) { refreshProducts() }
 
     Column(modifier = modifier.fillMaxWidth().imePadding()) {
-        // Title bar
-        Text(
-            "Add Product",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = colors.primary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-        )
-
-        // Scanner area - fixed at top
+        // Scanner area - same style as sell section
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Shop: $username", fontSize = 11.sp, color = colors.gray)
-            Spacer(Modifier.height(8.dp))
+            Text("Add Product", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+            Spacer(Modifier.height(4.dp))
+            Text("Scan barcode to add product", fontSize = 13.sp, color = colors.gray)
+            Spacer(Modifier.height(10.dp))
             BarcodeScannerView(onBarcodeScanned = { scannedBarcode = it })
         }
 
@@ -498,12 +643,15 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
 
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 items(filteredProducts, key = { it.id }) { product ->
+                    val lowStockLimit = SettingsData.getLowStockLimit(context)
                     val isOutOfStock = product.quantity <= 0
+                    val isLowStock = product.quantity in 1..lowStockLimit
+                    val isWarning = isOutOfStock || isLowStock
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .padding(vertical = 3.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isOutOfStock) colors.warning else colors.surface)
+                            .background(if (isWarning) colors.warning else colors.surface)
                             .clickable { editingProduct = product }
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -516,31 +664,21 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (isOutOfStock) {
+                                    if (isWarning) {
                                         Text("⚠️", fontSize = 14.sp)
                                         Spacer(Modifier.width(4.dp))
                                     }
                                     Text(
                                         "Qty: ${product.quantity}",
                                         fontSize = 12.sp,
-                                        color = if (isOutOfStock) colors.warningText else colors.primary,
+                                        color = if (isWarning) colors.warningText else colors.primary,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                                 Text("C: Rs.${product.customerPrice} | O: Rs.${product.ourPrice}", fontSize = 10.sp, color = colors.gray)
                             }
                             androidx.compose.material3.IconButton(
-                                onClick = {
-                                    scope.launch {
-                                        try {
-                                            db.localProductDao().deleteById(product.id)
-                                            Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
-                                            refreshProducts()
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                },
+                                onClick = { deleteConfirmProduct = product },
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = colors.error, modifier = Modifier.size(18.dp))
@@ -681,10 +819,44 @@ private fun AddPage(username: String, modifier: Modifier = Modifier) {
             }
         )
     }
+
+    // Delete confirmation dialog
+    if (deleteConfirmProduct != null) {
+        val p = deleteConfirmProduct!!
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteConfirmProduct = null },
+            containerColor = colors.surface,
+            title = { Text("Delete Product?", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+            text = { Text("Are you sure you want to delete '${p.name}'? This cannot be undone.", color = colors.onBackground) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                db.localProductDao().deleteById(p.id)
+                                Toast.makeText(context, "Product deleted", Toast.LENGTH_SHORT).show()
+                                refreshProducts()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        deleteConfirmProduct = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.error)
+                ) { Text("Delete", color = Color.White) }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { deleteConfirmProduct = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.gray)
+                ) { Text("Cancel", color = Color.White) }
+            }
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────
-//  ANALYSIS PAGE — Stats, Chart, Filters
+//  ANALYSIS PAGE — Stats, Sold List / Chart toggle, Customer filter
 // ─────────────────────────────────────────────────────────
 @Composable
 private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
@@ -700,20 +872,61 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
     var todayProductsSold by remember { mutableIntStateOf(0) }
     var lowStockCount by remember { mutableIntStateOf(0) }
     var outOfStockCount by remember { mutableIntStateOf(0) }
-
-    // Chart data
-    var filterMode by remember { mutableStateOf("day") } // day, month, year
-    var selectedProductName by remember { mutableStateOf<String?>(null) }
-    var productNames by remember { mutableStateOf<List<String>>(emptyList()) }
-    var chartData by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
-    var chartMaxVal by remember { mutableStateOf<Double>(1.0) }
     var totalProducts by remember { mutableIntStateOf(0) }
+
+    // View toggle
+    var showChart by remember { mutableStateOf(false) }
+
+    // Time filters
     var selectedDay by remember { mutableStateOf("All") }
     var selectedMonth by remember { mutableStateOf("All") }
     var selectedYear by remember { mutableStateOf("All") }
 
-    // Load stats once on page open
-    fun loadStats() {
+    // Single filter — "All Customers" + product names
+    var selectedFilter by remember { mutableStateOf("All Customers") }
+    var filterOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var customerGroups by remember { mutableStateOf<List<Pair<String, List<Sale>>>>(emptyList()) }
+
+    // Chart data
+    var chartData by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
+    var chartMaxVal by remember { mutableStateOf<Double>(1.0) }
+
+    // Customer detail popup
+    var selectedCustomerItems by remember { mutableStateOf<List<Sale>?>(null) }
+    var selectedCustomerName by remember { mutableStateOf("") }
+    var deleteConfirmAnalysisSale by remember { mutableStateOf<List<Sale>?>(null) }
+
+    fun applyTimeFilters(sales: List<Sale>): List<Sale> {
+        return sales.filter { sale ->
+            val c = Calendar.getInstance(TimeZone.getDefault())
+            c.timeInMillis = sale.soldAt
+            val dayMatch = selectedDay == "All" || c.get(Calendar.DAY_OF_MONTH).toString() == selectedDay
+            val monthNames = listOf("All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            val monthIdx = monthNames.indexOf(selectedMonth)
+            val monthMatch = selectedMonth == "All" || c.get(Calendar.MONTH) == monthIdx - 1
+            val yearMatch = selectedYear == "All" || c.get(Calendar.YEAR).toString() == selectedYear
+            dayMatch && monthMatch && yearMatch
+        }
+    }
+
+    fun groupByCustomer(sales: List<Sale>): List<Pair<String, List<Sale>>> {
+        // Group sales within 5 seconds as same customer/bill
+        val sorted = sales.sortedByDescending { it.soldAt }
+        val groups = mutableListOf<MutableList<Sale>>()
+        var currentGroup = mutableListOf<Sale>()
+        for (sale in sorted) {
+            if (currentGroup.isEmpty() || Math.abs(sale.soldAt - currentGroup.first().soldAt) < 5000) {
+                currentGroup.add(sale)
+            } else {
+                groups.add(currentGroup)
+                currentGroup = mutableListOf(sale)
+            }
+        }
+        if (currentGroup.isNotEmpty()) groups.add(currentGroup)
+        return groups.mapIndexed { idx, items -> "Customer ${groups.size - idx}" to items }
+    }
+
+    fun loadData() {
         scope.launch {
             loading = true
             try {
@@ -734,97 +947,66 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                 lowStockCount = products.count { it.quantity in 1..lowLimit }
                 outOfStockCount = products.count { it.quantity <= 0 }
 
-                productNames = db.saleDao().getDistinctProductNames(username)
-
-                // Fixed chart scale from all sales
+                // Load all sales and apply time filters
                 val allSales = db.saleDao().getAllForUser(username)
-                val groupedAll = allSales.groupBy {
-                    val c = java.util.Calendar.getInstance(java.util.TimeZone.getDefault())
-                    c.timeInMillis = it.soldAt
-                    "${c.get(java.util.Calendar.DAY_OF_MONTH)}/${c.get(java.util.Calendar.MONTH) + 1}"
-                }.map { (_, items) -> items.sumOf { it.totalAmount } }
-                chartMaxVal = (groupedAll.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
-            } catch (_: Exception) {}
-            loading = false
-        }
-    }
-
-    // Load chart only when filter changes
-    fun loadChart() {
-        scope.launch {
-            try {
-                val now = System.currentTimeMillis()
-                val cal = Calendar.getInstance(TimeZone.getDefault())
-
-                val allSales = if (selectedProductName != null) {
-                    db.saleDao().getSalesByProductBetween(username, selectedProductName!!, 0, now)
-                } else {
-                    db.saleDao().getAllForUser(username)
+                var filtered = applyTimeFilters(allSales)
+                // Build filter options
+                val allProductNames = allSales.map { it.productName }.distinct().sorted()
+                filterOptions = listOf("All Customers") + allProductNames
+                // Apply filter
+                if (selectedFilter != "All Customers") {
+                    filtered = filtered.filter { it.productName == selectedFilter }
                 }
+                customerGroups = groupByCustomer(filtered)
 
-                // Filter by day/month/year selection
-                val filtered = allSales.filter { sale ->
-                    val c = Calendar.getInstance(TimeZone.getDefault())
-                    c.timeInMillis = sale.soldAt
-                    val dayMatch = selectedDay == "All" || c.get(Calendar.DAY_OF_MONTH).toString() == selectedDay
-                    val monthNames = listOf("All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-                    val monthIdx = monthNames.indexOf(selectedMonth)
-                    val monthMatch = selectedMonth == "All" || c.get(Calendar.MONTH) == monthIdx - 1
-                    val yearMatch = selectedYear == "All" || c.get(Calendar.YEAR).toString() == selectedYear
-                    dayMatch && monthMatch && yearMatch
-                }
-
-                // Update product names to only show sold products in selected period
-                productNames = filtered.map { it.productName }.distinct().sorted()
-                // Reset product filter if selected product not in filtered results
-                if (selectedProductName != null && selectedProductName !in productNames) {
-                    selectedProductName = null
-                }
-
-                chartData = when (filterMode) {
-                    "day" -> {
+                // Chart data
+                chartData = when {
+                    selectedDay != "All" -> {
+                        filtered.groupBy {
+                            val c = Calendar.getInstance(TimeZone.getDefault())
+                            c.timeInMillis = it.soldAt
+                            val h = c.get(Calendar.HOUR_OF_DAY)
+                            val m = c.get(Calendar.MINUTE)
+                            "${h}:${String.format("%02d", m)}"
+                        }.map { (label, items) -> label to items.sumOf { it.totalAmount } }
+                            .sortedBy { it.first }
+                    }
+                    selectedMonth != "All" -> {
                         filtered.groupBy {
                             val c = Calendar.getInstance(TimeZone.getDefault())
                             c.timeInMillis = it.soldAt
                             c.get(Calendar.DAY_OF_MONTH).toString()
-                        }.map { (label, items) ->
-                            label to items.sumOf { it.totalAmount }
-                        }.sortedBy { it.first.toIntOrNull() ?: 0 }
+                        }.map { (label, items) -> label to items.sumOf { it.totalAmount } }
+                            .sortedBy { it.first.toIntOrNull() ?: 0 }
                     }
-                    "month" -> {
+                    else -> {
                         val monthNamesShort = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
                         filtered.groupBy {
                             val c = Calendar.getInstance(TimeZone.getDefault())
                             c.timeInMillis = it.soldAt
                             monthNamesShort[c.get(Calendar.MONTH)]
-                        }.map { (label, items) ->
-                            label to items.sumOf { it.totalAmount }
-                        }.sortedBy { monthNamesShort.indexOf(it.first) }
-                    }
-                    else -> {
-                        filtered.groupBy {
-                            val c = Calendar.getInstance(TimeZone.getDefault())
-                            c.timeInMillis = it.soldAt
-                            c.get(Calendar.YEAR).toString()
-                        }.map { (label, items) ->
-                            label to items.sumOf { it.totalAmount }
-                        }.sortedBy { it.first.toIntOrNull() ?: 0 }
+                        }.map { (label, items) -> label to items.sumOf { it.totalAmount } }
+                            .sortedBy { monthNamesShort.indexOf(it.first) }
                     }
                 }
+
+                val allGrouped = allSales.groupBy {
+                    val c = Calendar.getInstance(TimeZone.getDefault())
+                    c.timeInMillis = it.soldAt
+                    "${c.get(java.util.Calendar.DAY_OF_MONTH)}/${c.get(java.util.Calendar.MONTH) + 1}"
+                }.map { (_, items) -> items.sumOf { it.totalAmount } }
+                chartMaxVal = (allGrouped.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
             } catch (_: Exception) {}
+            loading = false
         }
     }
 
-    // Load stats once on page open
-    LaunchedEffect(username) { loadStats() }
-    // Load chart when filters change
-    LaunchedEffect(filterMode, selectedProductName, selectedDay, selectedMonth, selectedYear) { loadChart() }
+    LaunchedEffect(username) { loadData() }
+    LaunchedEffect(selectedDay, selectedMonth, selectedYear, selectedFilter) { loadData() }
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(40.dp))
-        // Header
         Text("Analysis", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.primary)
-        Text("Shop: $username", fontSize = 12.sp, color = colors.gray)
         Spacer(Modifier.height(16.dp))
 
         if (loading) {
@@ -856,37 +1038,21 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(12.dp))
                 }
 
-                // ── Filters ──
+                // ── Time Filters ──
                 item {
-                    Text("Sales Chart", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.primary)
-                    Spacer(Modifier.height(8.dp))
-
                     val dayList = listOf("All") + (1..31).map { it.toString() }
                     val monthList = listOf("All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
                     val yearList = listOf("All") + (2020..Calendar.getInstance().get(Calendar.YEAR)).map { it.toString() }.reversed().toList()
-
                     var dayExpanded by remember { mutableStateOf(false) }
                     var monthExpanded by remember { mutableStateOf(false) }
                     var yearExpanded by remember { mutableStateOf(false) }
 
-                    // Day / Month / Year buttons with dropdowns
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        // Day button + dropdown
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Day
                         Box(modifier = Modifier.weight(1f)) {
-                            val dayLabel = if (selectedDay == "All") "Day" else selectedDay
-                            Box(
-                                modifier = Modifier.fillMaxWidth()
-                                    .height(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(colors.primary)
-                                    .clickable { dayExpanded = true }
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(dayLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            val label = if (selectedDay == "All") "Day" else selectedDay
+                            Box(modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(10.dp)).background(colors.primary).clickable { dayExpanded = true }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
                             DropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 dayList.forEach { item ->
@@ -897,20 +1063,11 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                                 }
                             }
                         }
-
-                        // Month button + dropdown
+                        // Month
                         Box(modifier = Modifier.weight(1f)) {
-                            val monthLabel = if (selectedMonth == "All") "Month" else selectedMonth
-                            Box(
-                                modifier = Modifier.fillMaxWidth()
-                                    .height(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(colors.primary)
-                                    .clickable { monthExpanded = true }
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(monthLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            val label = if (selectedMonth == "All") "Month" else selectedMonth
+                            Box(modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(10.dp)).background(colors.primary).clickable { monthExpanded = true }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
                             DropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 monthList.forEach { item ->
@@ -921,20 +1078,11 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                                 }
                             }
                         }
-
-                        // Year button + dropdown
+                        // Year
                         Box(modifier = Modifier.weight(1f)) {
-                            val yearLabel = if (selectedYear == "All") "Year" else selectedYear
-                            Box(
-                                modifier = Modifier.fillMaxWidth()
-                                    .height(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(colors.primary)
-                                    .clickable { yearExpanded = true }
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(yearLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            val label = if (selectedYear == "All") "Year" else selectedYear
+                            Box(modifier = Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(10.dp)).background(colors.primary).clickable { yearExpanded = true }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
                             DropdownMenu(expanded = yearExpanded, onDismissRequest = { yearExpanded = false }, modifier = Modifier.heightIn(max = 200.dp).background(colors.surface)) {
                                 yearList.forEach { item ->
@@ -946,91 +1094,245 @@ private fun AnalysisPage(username: String, modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
+                }
 
-                    // Product dropdown
-                    if (productNames.isNotEmpty()) {
-                        var productExpanded by remember { mutableStateOf(false) }
-                        val currentProductLabel = selectedProductName ?: "All Products"
+                // ── View Toggle: Sold List / Chart ──
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(10.dp)).background(if (!showChart) colors.primary else colors.surface).border(1.dp, colors.primary, RoundedCornerShape(10.dp)).clickable { showChart = false }, contentAlignment = Alignment.Center) {
+                            Text("Sold Products", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (!showChart) Color.White else colors.primary)
+                        }
+                        Box(modifier = Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(10.dp)).background(if (showChart) colors.primary else colors.surface).border(1.dp, colors.primary, RoundedCornerShape(10.dp)).clickable { showChart = true }, contentAlignment = Alignment.Center) {
+                            Text("Chart", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (showChart) Color.White else colors.primary)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
 
+                // ── Single Filter (visible in both views) ──
+                if (filterOptions.isNotEmpty()) {
+                    item {
+                        var filterExpanded by remember { mutableStateOf(false) }
                         Box(Modifier.fillMaxWidth()) {
                             OutlinedTextField(
-                                value = currentProductLabel,
+                                value = selectedFilter,
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("Filter by Product", fontSize = 12.sp) },
-                                trailingIcon = {
-                                    Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
-                                },
-                                modifier = Modifier.fillMaxWidth().clickable { productExpanded = true },
+                                label = { Text("Filter", fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth().clickable { filterExpanded = true },
                                 shape = RoundedCornerShape(10.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = colors.onBackground,
-                                    unfocusedTextColor = colors.onBackground,
-                                    focusedBorderColor = colors.primary,
-                                    unfocusedBorderColor = colors.gray
-                                )
+                                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.onBackground, unfocusedTextColor = colors.onBackground, focusedBorderColor = colors.primary, unfocusedBorderColor = colors.gray)
                             )
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(56.dp).clickable { productExpanded = true }
-                            )
-                            DropdownMenu(
-                                expanded = productExpanded,
-                                onDismissRequest = { productExpanded = false },
-                                modifier = Modifier.heightIn(max = 220.dp).background(colors.surface)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("All Products", fontSize = 14.sp, color = if (selectedProductName == null) Color.White else colors.onBackground, fontWeight = if (selectedProductName == null) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (selectedProductName == null) colors.primary else Color.Transparent).padding(4.dp)) },
-                                    onClick = { selectedProductName = null; productExpanded = false }
-                                )
-                                productNames.forEach { name ->
-                                    val isSel = selectedProductName == name
-                                    DropdownMenuItem(
-                                        text = { Text(name, fontSize = 14.sp, color = if (isSel) Color.White else colors.onBackground, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (isSel) colors.primary else Color.Transparent).padding(4.dp)) },
-                                        onClick = { selectedProductName = name; productExpanded = false }
-                                    )
+                            Box(modifier = Modifier.fillMaxWidth().height(56.dp).clickable { filterExpanded = true })
+                            DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }, modifier = Modifier.heightIn(max = 220.dp).background(colors.surface)) {
+                                filterOptions.forEach { name ->
+                                    val isSel = selectedFilter == name
+                                    DropdownMenuItem(text = { Text(name, fontSize = 14.sp, color = if (isSel) Color.White else colors.onBackground, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.fillMaxWidth().background(if (isSel) colors.primary else Color.Transparent).padding(4.dp)) }, onClick = { selectedFilter = name; filterExpanded = false })
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                }
+
+                if (!showChart) {
+                    // ── Customer List ──
+                    val displayGroups = customerGroups
+                    if (displayGroups.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                                Text("No sales yet", color = colors.gray, fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        items(displayGroups.size) { index ->
+                            val (name, items) = displayGroups[index]
+                            val total = items.sumOf { it.totalAmount }
+                            val itemCount = items.size
+                            val timeStr = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(items.first().soldAt))
+                            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable { selectedCustomerItems = items; selectedCustomerName = name }) {
+                                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                                        Text("$itemCount item${if (itemCount > 1) "s" else ""} • $timeStr", fontSize = 11.sp, color = colors.gray)
+                                    }
+                                    Text("Rs.${"%.2f".format(total)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                                    // Delete bucket button
+                                    androidx.compose.material3.IconButton(
+                                        onClick = { deleteConfirmAnalysisSale = items },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = colors.error, modifier = Modifier.size(18.dp))
+                                    }
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                }
-
-                // ── Bar Chart ──
-                item {
+                } else {
+                    // ── Chart View ──
+                    item {
+                    // (product filter already shown above)
                     if (chartData.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(200.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.surface)
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No sales data yet", color = colors.gray, fontSize = 13.sp)
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.surface)
-                                .padding(top = 8.dp, bottom = 4.dp)
-                        ) {
-                            Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                                SalesBarChart(
-                                    data = chartData.takeLast(15).reversed(),
-                                    modifier = Modifier.widthIn(min = 300.dp)
-                                        .width((chartData.takeLast(15).size * 50 + 24).dp)
-                                        .padding(horizontal = 8.dp),
-                                    fixedMax = chartMaxVal
-                                )
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(16.dp), contentAlignment = Alignment.Center) {
+                                Text("No sales data yet", color = colors.gray, fontSize = 13.sp)
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(top = 8.dp, bottom = 4.dp)) {
+                                Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                    SalesBarChart(data = chartData.takeLast(15).reversed(), modifier = Modifier.widthIn(min = 300.dp).width((chartData.takeLast(15).size * 50 + 24).dp).padding(horizontal = 8.dp), fixedMax = chartMaxVal)
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
                 }
             }
         }
     }
+
+    // ── Customer Detail Popup ──
+    if (selectedCustomerItems != null) {
+        val items = selectedCustomerItems!!
+        val total = items.sumOf { it.totalAmount }
+        val totalQty = items.sumOf { it.quantitySold }
+        val dateStr = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(items.first().soldAt))
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { selectedCustomerItems = null },
+            containerColor = colors.surface,
+            title = {
+                Column {
+                    Text(selectedCustomerName, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                    Text(dateStr, fontSize = 11.sp, color = colors.gray)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    items.forEachIndexed { idx, sale ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("${idx + 1}. ${sale.productName}", fontSize = 13.sp, color = colors.onBackground, fontWeight = FontWeight.Medium)
+                                Text("Qty: ${sale.quantitySold} × Rs.${"%.0f".format(sale.unitPrice)}", fontSize = 11.sp, color = colors.gray)
+                            }
+                            Text("Rs.${"%.2f".format(sale.totalAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.background))
+                    Spacer(Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Items: $totalQty", fontSize = 13.sp, color = colors.gray)
+                        Text("Total: Rs.${"%.2f".format(total)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // PDF button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val saleProducts = items.map { sale ->
+                                        LocalProduct(username = username, barcode = sale.barcode, name = sale.productName, quantity = sale.quantitySold, customerPrice = sale.unitPrice, ourPrice = sale.ourPrice)
+                                    }
+                                    generatePdf(context, saleProducts, username)
+                                    Toast.makeText(context, "PDF saved!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                    ) {
+                        Text("PDF", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    // Print button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val saleProducts = items.map { sale ->
+                                        LocalProduct(username = username, barcode = sale.barcode, name = sale.productName, quantity = sale.quantitySold, customerPrice = sale.unitPrice, ourPrice = sale.ourPrice)
+                                    }
+                                    printBill(context, saleProducts, username)
+                                    Toast.makeText(context, "Printed!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                    ) {
+                        Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Print", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { selectedCustomerItems = null }) {
+                    Text("Close", color = colors.gray)
+                }
+            }
+        )
+    }
+
+    // Delete sale confirmation dialog
+    if (deleteConfirmAnalysisSale != null) {
+        val saleItems = deleteConfirmAnalysisSale!!
+        val saleTotal = saleItems.sumOf { it.totalAmount }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteConfirmAnalysisSale = null },
+            containerColor = colors.surface,
+            title = { Text("Delete Sale?", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+            text = { Text("Delete this sale of Rs.${"%.2f".format(saleTotal)}? Stock will be restored.", color = colors.onBackground) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                var restored = 0
+                                for (sale in saleItems) {
+                                    val product = db.localProductDao().getByBarcodeForUser(sale.barcode, username)
+                                    if (product != null) {
+                                        db.localProductDao().update(product.copy(quantity = product.quantity + sale.quantitySold))
+                                        restored++
+                                    }
+                                }
+                                db.saleDao().deleteByIds(saleItems.map { it.id })
+                                Toast.makeText(context, "Deleted. Stock restored: $restored items", Toast.LENGTH_SHORT).show()
+                                loadData()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        deleteConfirmAnalysisSale = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.error)
+                ) { Text("Delete", color = Color.White) }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { deleteConfirmAnalysisSale = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.gray)
+                ) { Text("Cancel", color = Color.White) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val colors = LocalAppColors.current
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(colors.surface)
+    ) { content() }
 }
 
 @Composable
@@ -1172,11 +1474,14 @@ private fun generatePdf(context: Context, products: List<LocalProduct>, username
             color = android.graphics.Color.LTGRAY; strokeWidth = 1f
         }
 
+        val phoneNumber = SettingsData.getPhoneNumber(context)
         var y = 50f
-        canvas.drawText("ChexoScan - Bill", 40f, y, titlePaint)
-        y += 25f
-        canvas.drawText("Shop: $username", 40f, y, textPaint)
-        y += 15f
+        canvas.drawText(username, 40f, y, titlePaint)
+        y += 22f
+        if (phoneNumber.isNotBlank()) {
+            canvas.drawText("Phone: $phoneNumber", 40f, y, textPaint)
+            y += 15f
+        }
         val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())
         canvas.drawText("Date: $dateStr", 40f, y, textPaint)
         y += 25f
@@ -1185,7 +1490,6 @@ private fun generatePdf(context: Context, products: List<LocalProduct>, username
 
         // Headers
         canvas.drawText("Item", 40f, y, headerPaint)
-        canvas.drawText("Rate", 300f, y, headerPaint)
         canvas.drawText("Amount", 430f, y, headerPaint)
         y += 5f
         canvas.drawLine(40f, y, 555f, y, linePaint)
@@ -1196,7 +1500,6 @@ private fun generatePdf(context: Context, products: List<LocalProduct>, username
             val amount = p.customerPrice * p.quantity
             total += amount
             canvas.drawText(p.name.take(30), 40f, y, textPaint)
-            canvas.drawText("Rs.${p.customerPrice}", 300f, y, textPaint)
             canvas.drawText("Rs.${"%.2f".format(amount)}", 430f, y, textPaint)
             y += 20f
         }
@@ -1318,7 +1621,7 @@ private class BillPrintAdapter(
         callback: WriteResultCallback
     ) {
         val document = PdfDocument()
-        val page = drawBill(document, products, username, printerSize)
+        val page = drawBill(document, products, username, printerSize, ctx)
         document.finishPage(page)
         try {
             FileOutputStream(destination.fileDescriptor).use { out ->
@@ -1333,7 +1636,7 @@ private class BillPrintAdapter(
     }
 }
 
-private fun drawBill(document: PdfDocument, products: List<LocalProduct>, username: String, printerSize: String = "A4"): PdfDocument.Page {
+private fun drawBill(document: PdfDocument, products: List<LocalProduct>, username: String, printerSize: String = "A4", context: Context? = null): PdfDocument.Page {
     val (pageWidth, pageHeight) = getPrinterPageSize(printerSize)
     val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
     val page = document.startPage(pageInfo)
@@ -1341,7 +1644,6 @@ private fun drawBill(document: PdfDocument, products: List<LocalProduct>, userna
 
     val margin = 20f
     val usableWidth = pageWidth - margin * 2
-    val rateX = margin + usableWidth * 0.55f
     val amountX = margin + usableWidth * 0.78f
     val lineRight = pageWidth - margin
 
@@ -1362,19 +1664,39 @@ private fun drawBill(document: PdfDocument, products: List<LocalProduct>, userna
         setColor(android.graphics.Color.LTGRAY); strokeWidth = 1f
     }
 
+    val phoneNumber = if (context != null) SettingsData.getPhoneNumber(context) else ""
+    val centerX = pageWidth / 2f
+
+    val totalPaint = android.graphics.Paint().apply {
+        setTextSize(totalSize); isFakeBoldText = true; setColor(android.graphics.Color.parseColor("#1976D2"))
+    }
+
+    // Center-aligned paints for small printers
+    val centerTitlePaint = android.graphics.Paint(titlePaint).apply {
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val centerTextPaint = android.graphics.Paint(textPaint).apply {
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val centerTotalPaint = android.graphics.Paint(totalPaint).apply {
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+
     var y = 30f
-    val titleText = if (isSmall) "Bill" else "ChexoScan - Bill"
-    canvas.drawText(titleText, margin, y, titlePaint)
-    y += titleSize + 8f
-    canvas.drawText("Shop: $username", margin, y, textPaint)
-    y += bodySize + 4f
-    canvas.drawText("Date: ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())}", margin, y, textPaint)
+    // Shop name — centered for small printers
+    canvas.drawText(username, if (isSmall) centerX else margin, y, if (isSmall) centerTitlePaint else titlePaint)
+    y += titleSize + 6f
+    if (phoneNumber.isNotBlank()) {
+        canvas.drawText("Phone: $phoneNumber", if (isSmall) centerX else margin, y, if (isSmall) centerTextPaint else textPaint)
+        y += bodySize + 4f
+    }
+    canvas.drawText("Date: ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date())}", if (isSmall) centerX else margin, y, if (isSmall) centerTextPaint else textPaint)
     y += bodySize + 8f
     canvas.drawLine(margin, y, lineRight, y, linePaint)
     y += 12f
 
+    // Item/Amount header — left aligned always
     canvas.drawText("Item", margin, y, headerPaint)
-    canvas.drawText("Rate", rateX, y, headerPaint)
     canvas.drawText("Amount", amountX, y, headerPaint)
     y += 3f
     canvas.drawLine(margin, y, lineRight, y, linePaint)
@@ -1386,7 +1708,6 @@ private fun drawBill(document: PdfDocument, products: List<LocalProduct>, userna
         total += amount
         val maxNameLen = if (isSmall) 15 else 30
         canvas.drawText(p.name.take(maxNameLen), margin, y, textPaint)
-        canvas.drawText("Rs.${p.customerPrice}", rateX, y, textPaint)
         canvas.drawText("Rs.${"%.2f".format(amount)}", amountX, y, textPaint)
         y += bodySize + 6f
     }
@@ -1394,9 +1715,7 @@ private fun drawBill(document: PdfDocument, products: List<LocalProduct>, userna
     y += 5f
     canvas.drawLine(margin, y, lineRight, y, linePaint)
     y += 15f
-    val totalPaint = android.graphics.Paint().apply {
-        setTextSize(totalSize); isFakeBoldText = true; setColor(android.graphics.Color.parseColor("#1976D2"))
-    }
-    canvas.drawText("TOTAL: Rs.${"%.2f".format(total)}", margin, y, totalPaint)
+    // Total — centered for small printers
+    canvas.drawText("TOTAL: Rs.${"%.2f".format(total)}", if (isSmall) centerX else margin, y, if (isSmall) centerTotalPaint else totalPaint)
     return page
 }

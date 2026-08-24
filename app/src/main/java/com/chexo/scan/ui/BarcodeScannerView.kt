@@ -49,7 +49,8 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import com.chexo.scan.ui.theme.LocalAppColors
 
-private const val IDLE_TIMEOUT_MS = 35 * 60 * 1000L
+
+private const val SCAN_COOLDOWN_MS = 1000L  // 1 second cooldown between scans
 
 private fun playBeep(context: android.content.Context) {
     try {
@@ -75,7 +76,10 @@ fun BarcodeScannerView(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var paused by remember { mutableStateOf(true) }
+    // paused = true means camera OFF (user must tap to resume)
+    // paused = false means camera ON and scanning
+    var paused by remember { mutableStateOf(true) }  // Start paused — tap to scan
+    var cooldownUntil by remember { mutableStateOf(0L) }  // Cooldown: ignore scans until this time
     var lastScanTime by remember { mutableStateOf(System.currentTimeMillis()) }
     val handler = remember { Handler(Looper.getMainLooper()) }
 
@@ -91,13 +95,13 @@ fun BarcodeScannerView(
         }
     }
 
-    // Idle timeout — auto-pause after 35 minutes
+    // Auto-pause after 1 minute of no scanning
     LaunchedEffect(paused) {
         if (!paused) {
             lastScanTime = System.currentTimeMillis()
             while (!paused) {
-                kotlinx.coroutines.delay(10_000)
-                if (System.currentTimeMillis() - lastScanTime > IDLE_TIMEOUT_MS) {
+                kotlinx.coroutines.delay(5_000)
+                if (System.currentTimeMillis() - lastScanTime > 60_000L) {
                     paused = true
                     break
                 }
@@ -105,7 +109,7 @@ fun BarcodeScannerView(
         }
     }
 
-    // Clean up handler when composable is removed (tab switch)
+    // Clean up on dispose (tab switch)
     DisposableEffect(Unit) {
         onDispose {
             paused = true
@@ -125,8 +129,6 @@ fun BarcodeScannerView(
                     if (paused) {
                         paused = false
                         lastScanTime = System.currentTimeMillis()
-                    } else {
-                        paused = true
                     }
                 },
             contentAlignment = Alignment.Center
@@ -184,14 +186,14 @@ fun BarcodeScannerView(
                                                             if (barcode != null) {
                                                                 val value = barcode.rawValue ?: barcode.displayValue ?: ""
                                                                 if (value.isNotEmpty()) {
-                                                                    paused = true
-                                                                    lastScanTime = System.currentTimeMillis()
-                                                                    playBeep(ctx)
-                                                                    onBarcodeScanned(value)
-                                                                    handler.postDelayed({
-                                                                        paused = false
-                                                                        lastScanTime = System.currentTimeMillis()
-                                                                    }, 1500)
+                                                                    val now = System.currentTimeMillis()
+                                                                    // Only scan if not in cooldown
+                                                                    if (now >= cooldownUntil) {
+                                                                        cooldownUntil = now + SCAN_COOLDOWN_MS
+                                                                        lastScanTime = now
+                                                                        playBeep(ctx)
+                                                                        onBarcodeScanned(value)
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -238,7 +240,7 @@ fun BarcodeScannerView(
                     Text("Scanning...", color = Color.White, fontSize = 12.sp)
                 }
             } else {
-                // Camera is OFF — show tap to scan placeholder
+                // Camera is OFF — show tap to resume
                 Box(
                     contentAlignment = Alignment.Center
                 ) {
@@ -258,7 +260,7 @@ fun BarcodeScannerView(
                         )
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
-                    Text("⏸ Paused — Tap to Scan", color = Color.White, fontSize = 12.sp)
+                    Text("Paused — Tap to Scan", color = Color.White, fontSize = 12.sp)
                 }
             }
         }

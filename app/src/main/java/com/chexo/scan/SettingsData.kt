@@ -13,6 +13,16 @@ object SettingsData {
     var themeState = mutableStateOf("System")
     private var themeInitialized = false
 
+    // Phone number for bill
+    fun getPhoneNumber(context: Context): String {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString("phone_number", "") ?: ""
+    }
+    fun setPhoneNumber(context: Context, phone: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString("phone_number", phone).apply()
+    }
+
     // General
     fun getPrinterSize(context: Context): String {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

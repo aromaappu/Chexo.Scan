@@ -2,6 +2,7 @@ package com.chexo.scan.ui
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -82,6 +83,8 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
     var showRestoreDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
+    var showAboutPage by remember { mutableStateOf(false) }
+    var showPrivacyPage by remember { mutableStateOf(false) }
     var stayLoggedIn by remember { mutableStateOf(SettingsData.getStayLoggedIn(context)) }
     var backupJson by remember { mutableStateOf("") }
     var backingUp by remember { mutableStateOf(false) }
@@ -125,9 +128,13 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
             item {
                 SectionHeader("General")
                 Card {
-                    // Printer Size
-                    SettingRow("Printer Size", printerSize, Icons.Default.Print) {
-                        showPrinterDialog = true
+                    // Bill Settings
+                    var showBillDialog by remember { mutableStateOf(false) }
+                    SettingRow("Bill Settings", "Printer, shop name & phone", Icons.Default.Print) {
+                        showBillDialog = true
+                    }
+                    if (showBillDialog) {
+                        BillSettingsDialog(context, colors, onDismiss = { showBillDialog = false })
                     }
                     DividerLine()
                     // Low Stock Limit
@@ -271,60 +278,125 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
             }
 
-            // ── About ──
+            // ── About & Privacy ──
             item {
-                SectionHeader("About")
+                SectionHeader("About & Privacy")
                 Card {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("ChexoScan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.primary)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "ChexoScan is a simple POS and stock management app made for small shop owners.",
-                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Scan packed product barcodes while adding stock or making a bill. Quickly calculate the total, check available stock, identify out-of-stock products, and understand your shop's sales, profit, or loss.",
-                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "ChexoScan works without an internet connection for normal scanning, stock management, and billing.",
-                            fontSize = 13.sp, color = colors.onBackground, lineHeight = 18.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text("Made for small shop owners.", fontSize = 13.sp, color = colors.gray)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Version: 1.0.0", fontSize = 13.sp, color = colors.gray)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { showAboutPage = true }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("About ChexoScan", fontSize = 14.sp, color = colors.onBackground)
+                            Text("App info & version", fontSize = 11.sp, color = colors.gray)
+                        }
+                        Text("›", fontSize = 18.sp, color = colors.gray)
                     }
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-
-            // ── Privacy Policy ──
-            item {
-                SectionHeader("Privacy Policy")
-                Card {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("ChexoScan Privacy Policy", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Last Updated: August 22, 2026", fontSize = 11.sp, color = colors.gray)
-                        Spacer(Modifier.height(10.dp))
-
-                        PrivacyItem("1. Information We Collect", "ChexoScan collects your username and password for account login. Passwords are securely stored in hashed form. If you use Google verification, we store your Gmail address for account verification.")
-                        PrivacyItem("2. Product Data", "Product information such as product name, price, and related product details is stored locally on your device. We do not collect this information on our servers.")
-                        PrivacyItem("3. Backup and Restore", "ChexoScan allows you to create a JSON backup file and save it to your local storage. A backup can only be restored when the same account is logged in.")
-                        PrivacyItem("4. Camera Permission", "ChexoScan uses your camera only for scanning product barcodes. Camera data is not collected or stored by us.")
-                        PrivacyItem("5. Data Sharing", "Your personal information is not sold or shared with third parties.")
-                        PrivacyItem("6. Analytics", "ChexoScan does not use analytics or tracking services to track your activity.")
-                        PrivacyItem("7. Account Deletion", "You can delete your account from the app. When your account is deleted, we do not retain the deleted account data.")
-                        PrivacyItem("8. Contact Us", "For support, suggestions, or privacy questions, contact us at: aromalkp0597h@gmail.com")
-
-                        Spacer(Modifier.height(10.dp))
-                        Text("By using ChexoScan, you agree to this Privacy Policy.", fontSize = 12.sp, color = colors.gray, fontWeight = FontWeight.Bold)
+                    DividerLine()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { showPrivacyPage = true }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Privacy Policy", fontSize = 14.sp, color = colors.onBackground)
+                            Text("Data & privacy information", fontSize = 11.sp, color = colors.gray)
+                        }
+                        Text("›", fontSize = 18.sp, color = colors.gray)
                     }
                 }
                 Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // ── About Full Page ──
+    if (showAboutPage) {
+        Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(colors.primary)
+                        .padding(top = 32.dp, bottom = 12.dp, start = 8.dp, end = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { showAboutPage = false }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Text("About ChexoScan", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                LazyColumn(modifier = Modifier.padding(16.dp)) {
+                    item {
+                        Card {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("ChexoScan", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                                Spacer(Modifier.height(4.dp))
+                                Text("Version: 1.0.0", fontSize = 13.sp, color = colors.gray)
+                                Spacer(Modifier.height(16.dp))
+                                Text("About ChexoScan", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "ChexoScan is a simple POS and stock management app made for small shop owners.",
+                                    fontSize = 14.sp, color = colors.onBackground, lineHeight = 20.sp
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Scan packed product barcodes while adding stock or making a bill. Quickly calculate the total, check available stock, identify out-of-stock products, and understand your shop's sales, profit, or loss.",
+                                    fontSize = 14.sp, color = colors.onBackground, lineHeight = 20.sp
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "ChexoScan works without an internet connection for normal scanning, stock management, and billing.",
+                                    fontSize = 14.sp, color = colors.onBackground, lineHeight = 20.sp
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Text("Made for small shop owners.", fontSize = 14.sp, color = colors.gray, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Privacy Full Page ──
+    if (showPrivacyPage) {
+        Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(colors.primary)
+                        .padding(top = 32.dp, bottom = 12.dp, start = 8.dp, end = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { showPrivacyPage = false }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Text("Privacy Policy", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                LazyColumn(modifier = Modifier.padding(16.dp)) {
+                    item {
+                        Card {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("ChexoScan Privacy Policy", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                                Spacer(Modifier.height(4.dp))
+                                Text("Last Updated: August 22, 2026", fontSize = 12.sp, color = colors.gray)
+                                Spacer(Modifier.height(16.dp))
+                                PrivacyItem("1. Information We Collect", "ChexoScan collects your username and password for account login. Passwords are securely stored in hashed form. If you use Google verification, we store your Gmail address for account verification.")
+                                PrivacyItem("2. Product Data", "Product information such as product name, price, and related product details is stored locally on your device. We do not collect this information on our servers.")
+                                PrivacyItem("3. Backup and Restore", "ChexoScan allows you to create a JSON backup file and save it to your local storage. A backup can only be restored when the same account is logged in.")
+                                PrivacyItem("4. Camera Permission", "ChexoScan uses your camera only for scanning product barcodes. Camera data is not collected or stored by us.")
+                                PrivacyItem("5. Data Sharing", "Your personal information is not sold or shared with third parties.")
+                                PrivacyItem("6. Analytics", "ChexoScan does not use analytics or tracking services to track your activity.")
+                                PrivacyItem("7. Account Deletion", "You can delete your account from the app. When your account is deleted, we do not retain the deleted account data.")
+                                PrivacyItem("8. Contact Us", "For support, suggestions, or privacy questions, contact us at: aromalkp0597h@gmail.com")
+                                Spacer(Modifier.height(12.dp))
+                                Text("By using ChexoScan, you agree to this Privacy Policy.", fontSize = 13.sp, color = colors.gray, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -748,11 +820,10 @@ private fun SettingRow(label: String, value: String, icon: androidx.compose.ui.g
 @Composable
 private fun PrivacyItem(title: String, content: String) {
     val colors = LocalAppColors.current
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-        Spacer(Modifier.height(2.dp))
-        Text(content, fontSize = 12.sp, color = colors.gray, lineHeight = 16.sp)
-        Spacer(Modifier.height(6.dp))
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+        Spacer(Modifier.height(4.dp))
+        Text(content, fontSize = 14.sp, color = colors.gray, lineHeight = 20.sp)
     }
 }
 
@@ -760,4 +831,104 @@ private fun PrivacyItem(title: String, content: String) {
 private fun DividerLine() {
     val colors = LocalAppColors.current
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.background).padding(horizontal = 12.dp))
+}
+
+@Composable
+private fun BillSettingsDialog(context: Context, colors: com.chexo.scan.ui.theme.AppColors, onDismiss: () -> Unit) {
+    var shopName by remember { mutableStateOf(context.getSharedPreferences("chexo_settings", Context.MODE_PRIVATE).getString("bill_shop_name", "") ?: "") }
+    var phone by remember { mutableStateOf(SettingsData.getPhoneNumber(context)) }
+    var showPreview by remember { mutableStateOf(false) }
+    var previewSize by remember { mutableStateOf(SettingsData.getPrinterSize(context)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { Text("Bill Settings", color = Color.Black, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = shopName,
+                    onValueChange = { shopName = it },
+                    label = { Text("Shop Name") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = colors.primary)
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone Number") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = colors.primary)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Printer Size:", fontSize = 13.sp, color = Color.Black)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("58mm", "80mm", "A5", "A4").forEach { size ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (previewSize == size) colors.primary else Color(0xFFE0E0E0))
+                                .clickable { previewSize = size }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(size, fontSize = 12.sp, color = if (previewSize == size) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                // Mini preview
+                BillPreview(shopName.ifBlank { "Shop Name" }, phone, previewSize)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                context.getSharedPreferences("chexo_settings", Context.MODE_PRIVATE).edit().putString("bill_shop_name", shopName).apply()
+                SettingsData.setPhoneNumber(context, phone)
+                SettingsData.setPrinterSize(context, previewSize)
+                onDismiss()
+            }) { Text("Save", color = colors.primary) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        }
+    )
+}
+
+@Composable
+private fun BillPreview(shopName: String, phone: String, printerSize: String) {
+    val (w, h) = when (printerSize) {
+        "58mm" -> Pair(160, 220)
+        "80mm" -> Pair(200, 260)
+        "A5" -> Pair(220, 300)
+        else -> Pair(220, 300)
+    }
+    Column(
+        modifier = Modifier
+            .width(w.dp)
+            .height(h.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+            .padding(8.dp)
+    ) {
+        Text(shopName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+        if (phone.isNotBlank()) {
+            Text("Phone: $phone", fontSize = 9.sp, color = Color.DarkGray)
+        }
+        Text("Date: 22 Aug 2026", fontSize = 9.sp, color = Color.DarkGray)
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.LightGray))
+        Spacer(Modifier.height(4.dp))
+        Text("Item", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.LightGray))
+        Spacer(Modifier.height(2.dp))
+        Text("Product A", fontSize = 9.sp, color = Color.DarkGray)
+        Text("Product B", fontSize = 9.sp, color = Color.DarkGray)
+        Text("Product C", fontSize = 9.sp, color = Color.DarkGray)
+        Spacer(Modifier.height(2.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.LightGray))
+        Spacer(Modifier.height(4.dp))
+        Text("TOTAL: Rs.350", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2))
+    }
 }

@@ -1,52 +1,106 @@
-# ChexoScan
+<div align="center">
 
-A barcode scanning and bill generation app for small shops built with Kotlin and Jetpack Compose.
+# 📷 ChexoScan
 
-## Features
+**Android barcode-scanning & billing app for small shops — scan, sell, and bill in seconds**
 
-- **Login / Sign Up** - Rotating circle UI with email and password authentication
-- **Barcode Scanning** - Scan packed product barcodes and save to database
-- **Product Lookup** - Scan barcodes to view product details
-- **Bill Generation** - Add multiple products and generate bills
-- **Supabase Integration** - Cloud database for storing products and user data
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-UI-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Android](https://img.shields.io/badge/API_24+-Android_7.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 
-## Tech Stack
+*ML Kit Barcode Scanning · Cloud Sync · Bill Generation · Offline-first Room Cache*
 
-- **Language:** Kotlin
-- **UI:** Jetpack Compose
-- **Database:** Supabase (PostgreSQL)
-- **Min SDK:** 24 (Android 7.0)
-- **Target SDK:** 37
+</div>
 
-## Setup
+---
 
-1. Clone the repository
-2. Open in Android Studio
-3. Sync Gradle
-4. Add your Supabase URL and API key to `local.properties`
-5. Run on device or emulator
+## 📖 About The Project
 
-## Project Structure
+ChexoScan turns an ordinary Android phone into a shop counter tool. Shop owners scan
+packed-product barcodes with the camera, look up prices instantly from the cloud catalog,
+and generate customer bills — no dedicated POS hardware required.
+
+### 🎯 Key Highlights
+
+- 📷 **Real-time scanning** — camera preview + ML Kit analyzer decodes barcodes on-device
+- ☁️ **Supabase backend** — products, sales and user profiles sync to PostgreSQL
+- 🧾 **Bill generation** — multi-item carts become shareable bills in two taps
+- 🔐 **Full auth flow** — email sign-up / login with Supabase Auth + deep-link session handling
+- 🎨 **100% Jetpack Compose** — modern declarative UI, no XML layouts
+
+---
+
+## ✨ Features
+
+| | |
+|---|---|
+| 🔄 **Login / Sign-up** | Animated rotating-circle UI, persistent sessions, back-button aware navigation |
+| 📷 **Barcode Scanning** | Live CameraX preview with ML Kit barcode analysis; scan-to-add and scan-to-lookup modes |
+| 🏷️ **Product Catalog** | Cloud product list with instant client-side filtering |
+| 🛒 **Billing** | Multi-item cart, totals calculation, bill generation & sharing |
+| 💾 **Sales History** | Every sale persisted via Room DAO for offline resilience |
+| ⚙️ **Settings** | In-app configuration screen backed by DataStore (`SettingsData`) |
+
+---
+
+## 🏗️ Architecture
+
+```
+UI (Jetpack Compose screens)
+   │  ViewModel state
+   ▼
+Data layer
+   ├── SupabaseClient ──► Supabase (Auth + PostgREST)   ← cloud sync
+   └── Room (SaleDao)  ──► local SQLite cache           ← offline history
+```
 
 ```
 app/src/main/java/com/chexo/scan/
-├── MainActivity.kt          # Entry point
+├── MainActivity.kt            # Nav host, auth deep-links, back handling
+├── data/
+│   └── SaleDao.kt             # Room persistence for sales
 ├── ui/
-│   ├── LoginScreen.kt       # Login/Signup with rotating circle
-│   └── theme/
-│       ├── Color.kt
-│       ├── Theme.kt
-│       └── Type.kt
+│   ├── LoginScreen.kt         # rotating-circle auth animation
+│   ├── HomeScreen.kt          # scanner hub + product list + billing
+│   ├── SettingsScreen.kt
+│   └── BarcodeScannerView.kt  # CameraX + ML Kit integration
+└── SettingsData.kt            # DataStore preferences
 ```
 
-## Supabase Setup
+---
 
-Create a Supabase project and add the following tables:
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Kotlin |
+| UI | Jetpack Compose, Material 3 |
+| Camera | CameraX + ML Kit Barcode Scanning |
+| Backend | Supabase (PostgreSQL, PostgREST, Auth) — `supabase-kt` |
+| Local storage | Room + DataStore |
+| Min / Target SDK | 24 (Android 7.0) / 37 |
+
+---
+
+## 🚀 Getting Started
+
+1. Clone and open in **Android Studio**
+2. Let Gradle sync
+3. Add your Supabase credentials to `local.properties`:
+
+   ```properties
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+4. Create the tables (see SQL below) and run on a device/emulator
+
+<details>
+<summary><b>Database schema</b></summary>
 
 ```sql
--- Users table (handled by Supabase Auth)
-
--- Products table
+-- Products
 CREATE TABLE products (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   barcode TEXT UNIQUE NOT NULL,
@@ -55,24 +109,32 @@ CREATE TABLE products (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Bills table
+-- Bills
 CREATE TABLE bills (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),
+  items JSONB NOT NULL,
   total DECIMAL(10,2) NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
-
--- Bill items table
-CREATE TABLE bill_items (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  bill_id UUID REFERENCES bills(id),
-  product_id UUID REFERENCES products(id),
-  quantity INT NOT NULL,
-  price DECIMAL(10,2) NOT NULL
-);
 ```
 
-## License
+</details>
 
-MIT
+---
+
+## 📸 Screenshots
+
+> Add screenshots here before sharing: login animation, scanner view, product list, generated bill.
+
+---
+
+## 👤 Author
+
+**Appu Aromal** — [GitHub](https://github.com/aromaappu)
+
+---
+
+<div align="center">
+<sub>Kotlin · Compose · CameraX · ML Kit · Supabase</sub>
+</div>

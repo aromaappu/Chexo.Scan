@@ -39,6 +39,13 @@ interface SaleDao {
     @Query("DELETE FROM sales WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM sales WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
+    // Recent sales grouped by soldAt (within 2 second window = same bill)
+    @Query("SELECT * FROM sales WHERE username = :username ORDER BY soldAt DESC LIMIT :limit")
+    suspend fun getRecentSales(username: String, limit: Int = 50): List<Sale>
+
     // Distinct product names sold by user
     @Query("SELECT DISTINCT productName FROM sales WHERE username = :username ORDER BY productName")
     suspend fun getDistinctProductNames(username: String): List<String>

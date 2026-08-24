@@ -6,10 +6,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -298,8 +301,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                     .select(columns = Columns.list("username", "email", "password"))
                     .decodeList<UserProfile>()
                 val profiles = all.filter {
-                    it.username?.equals(loginId, ignoreCase = true) == true ||
-                        it.email?.equals(loginId, ignoreCase = true) == true
+                    it.username?.equals(loginId, ignoreCase = true) == true
                 }
                 if (profiles.isEmpty()) {
                     authError = "No account found. Please sign up to create one."
@@ -414,7 +416,10 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
             Spacer(Modifier.height(40.dp))
 
             Box(
-                modifier = Modifier.size(300.dp).clip(RoundedCornerShape(150.dp)).background(colors.primary),
+                modifier = Modifier
+                    .size(300.dp)
+                    .clip(RoundedCornerShape(150.dp))
+                    .background(colors.primary),
                 contentAlignment = Alignment.Center
             ) {
                 when (page) {
@@ -428,7 +433,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             TextField(
                                 value = username,
                                 onValueChange = { username = it; clearErrors() },
-                                placeholder = { Text("Shop Name or Email", color = colors.gray, fontSize = 13.sp) },
+                                placeholder = { Text("Shop Name", color = colors.gray, fontSize = 13.sp) },
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)),
                                 colors = fieldColors,
                                 singleLine = true,
@@ -668,8 +673,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit = {}) {
                             )
                         }
                     }
-                }
-            }
+                } // when
+            } // Box
 
             if (authError.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
