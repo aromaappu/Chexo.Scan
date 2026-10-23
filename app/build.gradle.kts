@@ -6,6 +6,7 @@ plugins {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.chexo.scan"
     compileSdk {
         version = release(37)
@@ -17,6 +18,14 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+        val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").orNull
+            ?: providers.provider {
+                val p = java.util.Properties()
+                val file = rootProject.file("local.properties")
+                if (file.exists()) file.inputStream().use { p.load(it) }
+                p.getProperty("GOOGLE_WEB_CLIENT_ID", "")
+            }.get()
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\\\"" + googleWebClientId.replace("\\\"", "") + "\\\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
