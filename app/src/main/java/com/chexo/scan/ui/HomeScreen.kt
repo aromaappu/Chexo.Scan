@@ -88,6 +88,7 @@ import java.util.TimeZone
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import androidx.room.withTransaction
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -101,6 +102,7 @@ object BillState {
 fun HomeScreen(username: String = "User", onLogout: () -> Unit = {}) {
     val colors = LocalAppColors.current
     var selectedTab by remember { mutableIntStateOf(0) }
+    LaunchedEffect(username) { BillState.items.value = emptyList() }
     var showSettings by remember { mutableStateOf(false) }
 
     BackHandler {
@@ -301,9 +303,6 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                             scope.launch {
                                 try {
                                     generatePdf(context, billItems, username)
-                                    reduceQuantities(db, billItems, username)
-                                    billItems = emptyList()
-                                    loadRecentSales()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -327,9 +326,6 @@ private fun SellPage(username: String, modifier: Modifier = Modifier) {
                             scope.launch {
                                 try {
                                     printBill(context, billItems, username)
-                                    reduceQuantities(db, billItems, username)
-                                    billItems = emptyList()
-                                    loadRecentSales()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -1430,25 +1426,28 @@ private fun FooterIcon(icon: ImageVector, label: String, selected: Boolean, onCl
 //  REDUCE QUANTITIES after bill
 // ─────────────────────────────────────────────────────────
 private suspend fun reduceQuantities(db: com.chexo.scan.data.AppDatabase, billItems: List<LocalProduct>, username: String) {
-    val sales = mutableListOf<Sale>()
-    for (item in billItems) {
-        val existing = db.localProductDao().getById(item.id) ?: continue
-        val soldQty = minOf(item.quantity, existing.quantity)
-        val newQty = existing.quantity - soldQty
-        db.localProductDao().update(existing.copy(quantity = maxOf(newQty, 0)))
-        sales.add(
+    require(billItems.isNotEmpty()) { "Bill is empty." }
+    db.withTransaction {
+        val sales = billItems.map { item ->
+            require(item.username == username) { "Bill contains items belonging to another account." }
+            require(item.quantity > 0 && item.customerPrice.isFinite() && item.customerPrice >= 0) { "Invalid sale item." }
+            val existing = db.localProductDao().getById(item.id)
+                ?: error("Product ${item.name} no longer exists.")
+            require(existing.username == username) { "Inventory account mismatch." }
+            require(existing.quantity >= item.quantity) {
+                "Not enough stock for ${item.name}: available ${existing.quantity}, requested ${item.quantity}."
+            }
+            db.localProductDao().update(existing.copy(quantity = existing.quantity - item.quantity))
             Sale(
                 username = username,
                 barcode = item.barcode,
                 productName = item.name,
-                quantitySold = soldQty,
+                quantitySold = item.quantity,
                 unitPrice = item.customerPrice,
                 ourPrice = item.ourPrice,
-                totalAmount = item.customerPrice * soldQty
+                totalAmount = item.customerPrice * item.quantity
             )
-        )
-    }
-    if (sales.isNotEmpty()) {
+        }
         db.saleDao().insertAll(sales)
     }
 }
@@ -1457,7 +1456,6 @@ private suspend fun reduceQuantities(db: com.chexo.scan.data.AppDatabase, billIt
 //  PDF GENERATION
 // ─────────────────────────────────────────────────────────
 private fun generatePdf(context: Context, products: List<LocalProduct>, username: String) {
-    try {
         val document = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4
         val page = document.startPage(pageInfo)
@@ -1551,9 +1549,6 @@ private fun generatePdf(context: Context, products: List<LocalProduct>, username
             }
             context.startActivity(Intent.createChooser(intent, "Open PDF"))
         }
-    } catch (e: Exception) {
-        Toast.makeText(context, "PDF failed: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
 }
 // ─────────────────────────────────────────────────────────
 //  PRINT — uses printer size from Settings
@@ -1577,7 +1572,6 @@ private fun getPrintMediaSize(printerSize: String): PrintAttributes.MediaSize {
 }
 
 private fun printBill(context: Context, products: List<LocalProduct>, username: String) {
-    try {
         val printerSize = SettingsData.getPrinterSize(context)
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
         val jobName = "ChexoScan_Bill_${System.currentTimeMillis()}"
@@ -1588,9 +1582,6 @@ private fun printBill(context: Context, products: List<LocalProduct>, username: 
             .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
             .build()
         printManager.print(jobName, adapter, attrs)
-    } catch (e: Exception) {
-        Toast.makeText(context, "Print failed: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
 }
 
 private class BillPrintAdapter(
