@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.chexo.scan.AuthPrefs
 import com.chexo.scan.PasswordHasher
 import com.chexo.scan.SettingsData
+import com.chexo.scan.AccountApi
 import com.chexo.scan.data.AppDatabase
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -223,8 +224,8 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                 SectionHeader("Account")
                 Card {
                     // Change Password
-                    SettingRow("Change Password", "••••••••", Icons.Default.AccountCircle) {
-                        showChangePasswordDialog = true
+                    SettingRow("Google account", "Sign-in security managed by Google", Icons.Default.AccountCircle) {
+                        Toast.makeText(context, "Manage your password in your Google account.", Toast.LENGTH_LONG).show()
                     }
                     DividerLine()
                     // Stay Logged In toggle
@@ -284,7 +285,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Delete Account", fontSize = 14.sp, color = colors.error)
-                            Text("Delete local data; cloud account requires support", fontSize = 11.sp, color = colors.gray)
+                            Text("Delete local data and registered Google-linked account", fontSize = 11.sp, color = colors.gray)
                         }
                     }
                 }
@@ -402,7 +403,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                                 PrivacyItem("4. Camera Permission", "ChexoScan uses your camera only for scanning product barcodes. Camera data is not collected or stored by us.")
                                 PrivacyItem("5. Data Sharing", "Your personal information is not sold or shared with third parties.")
                                 PrivacyItem("6. Analytics", "ChexoScan does not use analytics or tracking services to track your activity.")
-                                PrivacyItem("7. Account Deletion", "The in-app Delete Account action currently clears local data and saved device account settings only. To request removal of cloud account details, please contact support.")
+                                PrivacyItem("7. Account Deletion", "Deleting your account removes local products, sales and saved settings, and asks our server to delete the Google-linked account record. Export your backup first. The operation requires Google verification.")
                                 PrivacyItem("8. Contact Us", "For support, suggestions, or privacy questions, contact us at: aromalkp0597h@gmail.com")
                                 Spacer(Modifier.height(12.dp))
                                 Text("By using ChexoScan, you agree to this Privacy Policy.", fontSize = 13.sp, color = colors.gray, fontWeight = FontWeight.Bold)
@@ -662,7 +663,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Text("• All sales history", fontSize = 13.sp, color = colors.onBackground)
                         Text("• Saved login information on this device", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(4.dp))
-                        Text("Cloud account deletion is not supported here yet. Contact support to remove cloud records.", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
+                        Text("Products, sales and the registered account will be deleted. This cannot be undone.", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
                     } else {
                         Text("Type DELETE below:", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(8.dp))
@@ -686,9 +687,15 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         confirmStep = 2
                     } else if (confirmText == "DELETE") {
                         scope.launch {
-                            SettingsData.deleteAccount(context, username)
-                            Toast.makeText(context, "Local data removed. Contact support to delete cloud account.", Toast.LENGTH_LONG).show()
-                            onLogout()
+                            try {
+                                val googleToken = AccountApi.refreshedGoogleIdToken(context)
+                                AccountApi.delete(googleToken)
+                                SettingsData.deleteAccount(context, username)
+                                Toast.makeText(context, "Google-linked account and local data deleted", Toast.LENGTH_LONG).show()
+                                onLogout()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not delete account: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 }) {
