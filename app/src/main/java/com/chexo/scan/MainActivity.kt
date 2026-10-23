@@ -72,26 +72,4 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
     }
 
-    private fun handleAuthIntent(intent: Intent) {
-        val data = intent.data
-        if (data == null || data.scheme != "chexoscan" || data.host != "auth-callback") {
-            return
-        }
-
-        SupabaseClient.client.handleDeeplinks(
-            intent = intent,
-            onSessionSuccess = {
-                runOnUiThread {
-                    loggedIn = true
-                    Toast.makeText(this, "Login successful.", Toast.LENGTH_SHORT).show()
-                }
-            },
-            onError = { e ->
-                Log.e("ChexoScan", "Auth callback failed", e)
-                runOnUiThread {
-                    Toast.makeText(this, "Login failed. Please try again.", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-    }
 }
