@@ -195,9 +195,14 @@ fun ScanResultDialog(
 
                 TextButton(onClick = {
                     if (name.isBlank()) { error = "Enter product name"; return@TextButton }
-                    val qty = quantity.toIntOrNull() ?: 1
-                    val cp = customerPrice.toDoubleOrNull() ?: 0.0
-                    val op = ourPrice.toDoubleOrNull() ?: 0.0
+                    val qty = quantity.toIntOrNull()
+                    val cp = customerPrice.toDoubleOrNull()
+                    val op = ourPrice.toDoubleOrNull()
+                    if (qty == null || qty < 0 || cp == null || !cp.isFinite() || cp < 0 ||
+                        op == null || !op.isFinite() || op < 0) {
+                        error = "Enter valid quantity and non-negative prices."
+                        return@TextButton
+                    }
                     onConfirm(name.trim(), qty, cp, op)
                 }) {
                     Text(
