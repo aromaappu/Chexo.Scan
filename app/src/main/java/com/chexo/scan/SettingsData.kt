@@ -70,27 +70,9 @@ object SettingsData {
             .edit().putBoolean("stay_logged_in", value).apply()
     }
 
-    // Change password via Supabase
+    // Passwords are not stored in Supabase. Authentication is Google OAuth-only.
     suspend fun changePasswordSupabase(context: Context, username: String, currentPassword: String, newPassword: String): String? {
-        return try {
-            val all = SupabaseClient.client.from("users")
-                .select(columns = Columns.list("username", "password"))
-                .decodeList<com.chexo.scan.ui.UserProfile>()
-            val profile = all.find { it.username?.equals(username, ignoreCase = true) == true }
-            if (profile == null) return "Account not found"
-            if (profile.password.isNullOrBlank()) return "Account incomplete"
-            if (!PasswordHasher.matches(currentPassword, profile.password)) return "Current password is incorrect"
-
-            val newHash = PasswordHasher.hash(newPassword)
-            SupabaseClient.client.from("users").update(
-                com.chexo.scan.ui.PasswordUpdate(password = newHash)
-            ) {
-                filter { eq("username", username) }
-            }
-            null // success
-        } catch (e: Exception) {
-            "Failed: ${e.message?.take(100)}"
-        }
+        return "ChexoScan uses Google Sign-In. Manage your Google password in your Google account."
     }
 
     // Backup
