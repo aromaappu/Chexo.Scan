@@ -1,0 +1,4 @@
+# Google ID tokens are validated inside the function using Google's JWKS.
+# Supabase user-JWT validation is disabled because this app does not use Supabase Auth.
+[functions.chexoscan-account]
+verify_jwt = false
