@@ -284,7 +284,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Delete Account", fontSize = 14.sp, color = colors.error)
-                            Text("Delete account & all data", fontSize = 11.sp, color = colors.gray)
+                            Text("Delete local data; cloud account requires support", fontSize = 11.sp, color = colors.gray)
                         }
                     }
                 }
@@ -402,7 +402,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                                 PrivacyItem("4. Camera Permission", "ChexoScan uses your camera only for scanning product barcodes. Camera data is not collected or stored by us.")
                                 PrivacyItem("5. Data Sharing", "Your personal information is not sold or shared with third parties.")
                                 PrivacyItem("6. Analytics", "ChexoScan does not use analytics or tracking services to track your activity.")
-                                PrivacyItem("7. Account Deletion", "You can delete your account from the app. When your account is deleted, we do not retain the deleted account data.")
+                                PrivacyItem("7. Account Deletion", "The in-app Delete Account action currently clears local data and saved device account settings only. To request removal of cloud account details, please contact support.")
                                 PrivacyItem("8. Contact Us", "For support, suggestions, or privacy questions, contact us at: aromalkp0597h@gmail.com")
                                 Spacer(Modifier.height(12.dp))
                                 Text("By using ChexoScan, you agree to this Privacy Policy.", fontSize = 13.sp, color = colors.gray, fontWeight = FontWeight.Bold)
@@ -660,9 +660,9 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                         Text("This will permanently delete:", fontSize = 13.sp, color = colors.onBackground)
                         Text("• All products", fontSize = 13.sp, color = colors.onBackground)
                         Text("• All sales history", fontSize = 13.sp, color = colors.onBackground)
-                        Text("• Account data", fontSize = 13.sp, color = colors.onBackground)
+                        Text("• Saved login information on this device", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(4.dp))
-                        Text("This cannot be undone!", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
+                        Text("Cloud account deletion is not supported here yet. Contact support to remove cloud records.", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.error)
                     } else {
                         Text("Type DELETE below:", fontSize = 13.sp, color = colors.onBackground)
                         Spacer(Modifier.height(8.dp))
@@ -687,7 +687,7 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                     } else if (confirmText == "DELETE") {
                         scope.launch {
                             SettingsData.deleteAccount(context, username)
-                            Toast.makeText(context, "Account deleted", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Local data removed. Contact support to delete cloud account.", Toast.LENGTH_LONG).show()
                             onLogout()
                         }
                     }
