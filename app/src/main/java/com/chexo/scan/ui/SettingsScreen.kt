@@ -164,9 +164,22 @@ fun SettingsScreen(username: String, onBack: () -> Unit, onLogout: () -> Unit) {
                                     backupJson = json.toString()
                                     // Save to Downloads
                                     val fileName = "ChexoScan_Backup_${username}_${System.currentTimeMillis()}.json"
-                                    val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                                    val file = java.io.File(dir, fileName)
-                                    file.writeText(backupJson)
+                                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                                        val values = android.content.ContentValues().apply {
+                                            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+                                            put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/json")
+                                            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                                        }
+                                        val uri = context.contentResolver.insert(
+                                            android.provider.MediaStore.Downloads.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY), values
+                                        ) ?: error("Unable to create backup file.")
+                                        context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                                            it.write(backupJson)
+                                        } ?: error("Unable to write backup file.")
+                                    } else {
+                                        val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                                        java.io.File(dir, fileName).writeText(backupJson)
+                                    }
                                     Toast.makeText(context, "Backup saved: $fileName", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Backup failed: ${e.message}", Toast.LENGTH_SHORT).show()
