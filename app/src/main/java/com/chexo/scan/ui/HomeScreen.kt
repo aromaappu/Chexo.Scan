@@ -1628,7 +1628,11 @@ private class BillPrintAdapter(
 }
 
 private fun drawBill(document: PdfDocument, products: List<LocalProduct>, username: String, printerSize: String = "A4", context: Context? = null): PdfDocument.Page {
-    val (pageWidth, pageHeight) = getPrinterPageSize(printerSize)
+    val (pageWidth, baseHeight) = getPrinterPageSize(printerSize)
+    // Receipt rolls must grow with the number of sold items.
+    val isReceipt = printerSize == "58mm" || printerSize == "80mm"
+    val estimatedHeight = 180 + products.size * (if (pageWidth < 300) 17 else 19)
+    val pageHeight = if (isReceipt) maxOf(baseHeight, estimatedHeight) else baseHeight
     val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
     val page = document.startPage(pageInfo)
     val canvas = page.canvas
