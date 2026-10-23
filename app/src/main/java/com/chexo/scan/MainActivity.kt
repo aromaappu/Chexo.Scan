@@ -34,46 +34,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val session = SupabaseClient.client.auth.currentSessionOrNull()
-                if (session != null) {
-                    val user = SupabaseClient.client.auth.currentUserOrNull()
-                    if (user != null) {
-                        val profiles = SupabaseClient.client.from("users")
-                            .select(columns = Columns.list("username")) {
-                                filter {
-                                    eq("user_id", user.id)
-                                }
-                            }
-                            .decodeList<UserProfile>()
-                        username = profiles.firstOrNull()?.username ?: "User"
-                    }
-                    loggedIn = true
-                }
-            } catch (e: Exception) {
-                Log.e("ChexoScan", "Session restore failed", e)
+        // Inventory is device-local. Persist only a shop name in private preferences;
+        // never use a stale Supabase Auth session as proof of identity.
+        if (SettingsData.getStayLoggedIn(this) && AuthPrefs.isLoggedIn(this)) {
+            val savedUsername = AuthPrefs.getCurrentUsername(this)
+            if (savedUsername.isNotBlank()) {
+                username = savedUsername
+                loggedIn = true
             }
         }
-
-        handleAuthIntent(intent)
 
         setContent {
             ChexoScaTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) {
                     if (loggedIn) {
                         HomeScreen(username = username, onLogout = {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    SupabaseClient.client.auth.signOut()
-                                    loggedIn = false
-                                    username = "User"
-                                } catch (e: Exception) {
-                                    runOnUiThread {
-                                        Toast.makeText(this@MainActivity, "Logout failed.", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
+                            AuthPrefs.clearSession(this@MainActivity)
+                            com.chexo.scan.ui.BillState.items.value = emptyList()
+                            loggedIn = false
+                            username = "User"
                         })
                     } else {
                         LoginScreen(
@@ -91,7 +70,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleAuthIntent(intent)
     }
 
     private fun handleAuthIntent(intent: Intent) {
