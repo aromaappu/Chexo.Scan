@@ -7,6 +7,7 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.room.withTransaction
 
 object SettingsData {
     private const val PREFS = "chexo_settings"
@@ -136,59 +137,50 @@ object SettingsData {
     suspend fun restoreBackup(context: Context, json: String, username: String): String {
         val root = JSONObject(json)
         val backupUser = root.optString("username", "")
+        require(backupUser == username) {
+            "This backup belongs to '$backupUser'. Cannot restore to '$username'."
+        }
+        require(root.optInt("backupVersion", -1) == 1) { "Unsupported backup format." }
 
-        if (backupUser != username) {
-            return "This backup belongs to '$backupUser'. Cannot restore to '$username'."
+        // Parse and validate the entire file before changing existing data.
+        val productsArray = root.getJSONArray("products")
+        val salesArray = root.getJSONArray("sales")
+        val products = (0 until productsArray.length()).map { i ->
+            val item = productsArray.getJSONObject(i)
+            com.chexo.scan.data.LocalProduct(
+                username = username,
+                barcode = item.getString("barcode"),
+                name = item.getString("name"),
+                quantity = item.getInt("quantity").also { require(it >= 0) { "Invalid product quantity." } },
+                customerPrice = item.getDouble("customerPrice").also { require(it.isFinite() && it >= 0) { "Invalid product price." } },
+                ourPrice = item.getDouble("ourPrice").also { require(it.isFinite() && it >= 0) { "Invalid cost price." } },
+                timestamp = item.getLong("timestamp")
+            )
+        }
+        val sales = (0 until salesArray.length()).map { i ->
+            val item = salesArray.getJSONObject(i)
+            com.chexo.scan.data.Sale(
+                username = username,
+                barcode = item.getString("barcode"),
+                productName = item.getString("productName"),
+                quantitySold = item.getInt("quantitySold").also { require(it > 0) { "Invalid sale quantity." } },
+                unitPrice = item.getDouble("unitPrice").also { require(it.isFinite() && it >= 0) { "Invalid sale price." } },
+                ourPrice = item.getDouble("ourPrice").also { require(it.isFinite() && it >= 0) { "Invalid sale cost." } },
+                totalAmount = item.getDouble("totalAmount").also { require(it.isFinite() && it >= 0) { "Invalid sale total." } },
+                soldAt = item.getLong("soldAt")
+            )
         }
 
         val db = AppDatabase.getInstance(context)
-        val productsArray = root.getJSONArray("products")
-        val salesArray = root.getJSONArray("sales")
-
-        // Clear existing data for this user
-        val existingProducts = db.localProductDao().getAllForUser(username)
-        for (p in existingProducts) {
-            db.localProductDao().deleteById(p.id)
+        // Atomic replacement: errors roll back BOTH tables, instead of duplicating
+        // sales or leaving the shop with a partially restored inventory.
+        db.withTransaction {
+            db.localProductDao().getAllForUser(username).forEach { db.localProductDao().deleteById(it.id) }
+            db.saleDao().getAllForUser(username).forEach { db.saleDao().deleteById(it.id) }
+            products.forEach { db.localProductDao().insert(it) }
+            if (sales.isNotEmpty()) db.saleDao().insertAll(sales)
         }
-
-        // Restore products
-        for (i in 0 until productsArray.length()) {
-            val obj = productsArray.getJSONObject(i)
-            db.localProductDao().insert(
-                com.chexo.scan.data.LocalProduct(
-                    username = username,
-                    barcode = obj.getString("barcode"),
-                    name = obj.getString("name"),
-                    quantity = obj.getInt("quantity"),
-                    customerPrice = obj.getDouble("customerPrice"),
-                    ourPrice = obj.getDouble("ourPrice"),
-                    timestamp = obj.getLong("timestamp")
-                )
-            )
-        }
-
-        // Restore sales
-        val sales = mutableListOf<com.chexo.scan.data.Sale>()
-        for (i in 0 until salesArray.length()) {
-            val obj = salesArray.getJSONObject(i)
-            sales.add(
-                com.chexo.scan.data.Sale(
-                    username = username,
-                    barcode = obj.getString("barcode"),
-                    productName = obj.getString("productName"),
-                    quantitySold = obj.getInt("quantitySold"),
-                    unitPrice = obj.getDouble("unitPrice"),
-                    ourPrice = obj.getDouble("ourPrice"),
-                    totalAmount = obj.getDouble("totalAmount"),
-                    soldAt = obj.getLong("soldAt")
-                )
-            )
-        }
-        if (sales.isNotEmpty()) {
-            db.saleDao().insertAll(sales)
-        }
-
-        return "Restored ${productsArray.length()} products and ${salesArray.length()} sales."
+        return "Restored ${products.size} products and ${sales.size} sales."
     }
 
     suspend fun clearAllData(context: Context, username: String) {
