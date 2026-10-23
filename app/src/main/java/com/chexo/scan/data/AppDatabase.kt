@@ -20,7 +20,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "chexoscan_db"
-                ).fallbackToDestructiveMigration().build()
+                ).build() // Never silently erase inventory/sales. Add explicit migrations before changing schema versions.
                 INSTANCE = instance
                 instance
             }
