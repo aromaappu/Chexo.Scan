@@ -6,12 +6,12 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 
 object SupabaseClient {
-    private const val SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"
-    private const val SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY"
+    private val supabaseUrl = BuildConfig.SUPABASE_URL
+    private val supabaseKey = BuildConfig.SUPABASE_ANON_KEY
 
     val client: SupabaseClient = createSupabaseClient(
-        supabaseUrl = SUPABASE_URL,
-        supabaseKey = SUPABASE_KEY
+        supabaseUrl = supabaseUrl,
+        supabaseKey = supabaseKey
     ) {
         install(Auth) {
             scheme = "chexoscan"

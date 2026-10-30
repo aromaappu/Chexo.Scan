@@ -1,0 +1,4 @@
+# Copy to local.properties (git-ignored) and fill in your own values.
+sdk.dir=C:\\Users\\YOUR_NAME\\AppData\\Local\\Android\\Sdk
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-publishable-key
